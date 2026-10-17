@@ -1,4 +1,4 @@
-package com.example.simplepad; //6
+package com.example.simplepad; 
 
 import android.content.Intent;
 import android.net.Uri;
