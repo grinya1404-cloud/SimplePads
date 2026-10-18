@@ -5,50 +5,32 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.FrameLayout;
 import android.widget.GridLayout;
 import android.widget.LinearLayout;
-import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.view.WindowManager;
 
 import java.io.File;
-import java.text.SimpleDateFormat;
-// import java.util.Arrays;
-import java.util.Date;
-import java.util.Locale;
 
 public class MainActivity extends Activity {
 
-  private static final int REQ_AUDIO = 100;
-  private static final int REQ_PICK_AUDIO = 101; // Новый код запроса
   private static final String[] GRID_NAMES = { "3×3", "4×4", "4×5", "5×5" };
   private static final int[][] GRID_SIZES = { { 3, 3 }, { 4, 4 }, { 4, 5 }, { 5, 5 } };
   private static final int MAX_PADS = 25;
-
-  private static final int COLOR_IDLE = 0xFF3A7BD5;
-  private static final int COLOR_ACTIVE = 0xFF1FA84B;
-  private static final int COLOR_PAUSED = 0xFFE8A33D;
-  private static final int COLOR_PROGRESS = 0xAAFFFFFF;
-
-  private static class PadView {
-    FrameLayout container;
-    ProgressBar progress;
-    TextView label;
-  }
+  private static final int REQ_AUDIO = 100;
+  private static final int REQ_PICK_AUDIO = 101;
 
   private Pad[] pads = new Pad[MAX_PADS];
-  private PadView[] padViews = new PadView[MAX_PADS];
+  private PadGridManager.PadView[] padViews = new PadGridManager.PadView[MAX_PADS];
 
   private int gridIndex = 1;
   private GridLayout grid;
@@ -71,17 +53,14 @@ public class MainActivity extends Activity {
     root.setOrientation(LinearLayout.VERTICAL);
     root.setBackgroundColor(Color.parseColor("#1E1E1E"));
 
-    // Панель диктофона
     topBar = new TopBarView(this);
 
-    // Сетка пэдов
     grid = new GridLayout(this);
     LinearLayout.LayoutParams gridParams = new LinearLayout.LayoutParams(
         LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
     grid.setLayoutParams(gridParams);
     grid.setPadding(8, 8, 8, 8);
 
-    // Нижняя панель
     LinearLayout bottomBar = new LinearLayout(this);
     bottomBar.setOrientation(LinearLayout.HORIZONTAL);
     bottomBar.setGravity(Gravity.CENTER);
@@ -113,7 +92,7 @@ public class MainActivity extends Activity {
       audioPlayer.stopAll();
       refreshPadColors();
     });
-    btnSettings.setOnClickListener(v -> showGridDialog());
+    btnSettings.setOnClickListener(v -> showSettingsMenu());
 
     bottomBar.addView(btnPause);
     bottomBar.addView(btnStop);
@@ -127,8 +106,8 @@ public class MainActivity extends Activity {
     pads = storage.loadPads();
     gridIndex = storage.getGridIndex();
     applyGrid();
-
     setupRecorderButtons();
+    updateKeepScreenFlag();
   }
 
   @Override
@@ -136,6 +115,134 @@ public class MainActivity extends Activity {
     super.onDestroy();
     audioPlayer.stopAll();
     audioRecorder.stop();
+  }
+
+  private void updateKeepScreenFlag() {
+    int mode = storage.getKeepScreenMode(); // 0=системно, 1=при записи, 2=всегда
+    boolean keepOn = false;
+
+    if (mode == 2) {
+      keepOn = true; // Всегда
+    } else if (mode == 1 && isRecordingMode) {
+      keepOn = true; // Только при записи
+    }
+
+    if (keepOn) {
+      getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+    } else {
+      getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+    }
+  }
+
+  private void applyGrid() {
+    int cols = GRID_SIZES[gridIndex][0];
+    int rows = GRID_SIZES[gridIndex][1];
+    int visible = cols * rows;
+
+    if (audioPlayer.getCurrentPadIndex() >= visible)
+      audioPlayer.stopAll();
+
+    grid.removeAllViews();
+    grid.setColumnCount(cols);
+    grid.setRowCount(rows);
+
+    for (int i = 0; i < visible; i++) {
+      final int index = i;
+      PadGridManager.PadView pv = PadGridManager.createPadView(this, grid, i, cols, pads[i].label);
+      pv.container.setOnClickListener(v -> onPadTapped(index));
+      pv.container.setOnLongClickListener(v -> {
+        showPadMenu(index);
+        return true;
+      });
+      padViews[i] = pv;
+      updateDurationText(i);
+    }
+
+    storage.saveGridIndex(gridIndex);
+    refreshPadColors();
+  }
+
+  private void onPadTapped(int index) {
+    boolean hasSound = pads[index].filePath != null;
+
+    // Если автозапись включена
+    if (storage.isAutoRecordEnabled()) {
+      // Если пэд ПУСТОЙ — ничего не делаем
+      if (!hasSound) {
+        return;
+      }
+
+      // Если пэд ЗАПОЛНЕН:
+      // 1. Если запись еще не идет — запускаем её
+      if (!isRecordingMode) {
+        startAutoRecording();
+      }
+
+      // 2. Воспроизводим звук (или ставим на паузу, если это тот же пэд)
+      if (index == audioPlayer.getCurrentPadIndex()) {
+        audioPlayer.togglePause();
+      } else {
+        audioPlayer.playNew(this, index, pads[index].filePath, padViews[index].progress,
+            this::refreshPadColors);
+      }
+      refreshPadColors();
+      return;
+    }
+
+    // --- Логика для обычного режима (автозапись выключена) ---
+    if (!hasSound) {
+      showPadMenu(index);
+      return;
+    }
+
+    if (index == audioPlayer.getCurrentPadIndex()) {
+      audioPlayer.togglePause();
+    } else {
+      audioPlayer.playNew(this, index, pads[index].filePath, padViews[index].progress,
+          this::refreshPadColors);
+    }
+    refreshPadColors();
+  }
+
+  private void refreshPadColors() {
+    int cols = GRID_SIZES[gridIndex][0];
+    int rows = GRID_SIZES[gridIndex][1];
+    int visible = cols * rows;
+    int currentPad = audioPlayer.getCurrentPadIndex();
+    boolean isPaused = audioPlayer.isPaused();
+
+    for (int i = 0; i < visible; i++) {
+      PadGridManager.PadView pv = padViews[i];
+      if (pv == null)
+        continue;
+
+      int bg = PadGridManager.COLOR_IDLE;
+      if (i == currentPad) {
+        bg = isPaused ? PadGridManager.COLOR_PAUSED : PadGridManager.COLOR_ACTIVE;
+      }
+      pv.container.setBackgroundColor(bg);
+
+      if (i != currentPad) {
+        pv.progress.setProgress(0);
+      }
+    }
+  }
+
+  private void updateDurationText(int index) {
+    if (padViews[index] == null)
+      return;
+
+    if (pads[index].filePath == null) {
+      padViews[index].durationText.setText("");
+      return;
+    }
+
+    int durationMs = MediaFileManager.getAudioDuration(pads[index].filePath);
+    if (durationMs > 0) {
+      padViews[index].durationText.setText(MediaFileManager.formatDuration(durationMs));
+    } else {
+      padViews[index].durationText.setText("");
+    }
   }
 
   // ================= ЛОГИКА ДИКТОФОНА =================
@@ -149,15 +256,14 @@ public class MainActivity extends Activity {
         requestAudioPermission();
         return;
       }
-
-      String path = createRecordFilePath();
+      String path = MediaFileManager.createRecordFilePath();
       if (path == null)
         return;
 
       if (audioRecorder.start(MainActivity.this, path, topBar.tvRecordTimer)) {
         isRecordingMode = true;
+        updateKeepScreenFlag();
         topBar.tvRecordIndicator.setVisibility(TextView.VISIBLE);
-        topBar.tvRecordTimer.setVisibility(TextView.VISIBLE);
         topBar.btnRecStart.setEnabled(false);
         topBar.btnRecPause.setEnabled(true);
         topBar.btnRecStop.setEnabled(true);
@@ -184,6 +290,7 @@ public class MainActivity extends Activity {
         return;
       audioRecorder.stop();
       isRecordingMode = false;
+      updateKeepScreenFlag();
       topBar.tvRecordIndicator.setVisibility(TextView.GONE);
       topBar.btnRecStart.setEnabled(true);
       topBar.btnRecPause.setEnabled(false);
@@ -192,138 +299,32 @@ public class MainActivity extends Activity {
     });
   }
 
-  private File getRecordDirectory() {
-    File musicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC);
-    File appDir = new File(musicDir, "SimplePad");
-    if (!appDir.exists())
-      appDir.mkdirs();
-    return appDir;
-  }
-
-  private String createRecordFilePath() {
-    File dir = getRecordDirectory();
-    if (!dir.exists())
-      return null;
-    String timeStamp = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault())
-        .format(new Date());
-    return new File(dir, "REC_" + timeStamp + ".m4a").getAbsolutePath();
-  }
-
-  // ================= СЕТКА ПЭДОВ =================
-
-  private void applyGrid() {
-    int cols = GRID_SIZES[gridIndex][0];
-    int rows = GRID_SIZES[gridIndex][1];
-    int visible = cols * rows;
-
-    if (audioPlayer.getCurrentPadIndex() >= visible)
-      audioPlayer.stopAll();
-
-    grid.removeAllViews();
-    grid.setColumnCount(cols);
-    grid.setRowCount(rows);
-
-    for (int i = 0; i < visible; i++) {
-      final int index = i;
-
-      FrameLayout container = new FrameLayout(this);
-      container.setBackgroundColor(COLOR_IDLE);
-      container.setClickable(true);
-      container.setFocusable(true);
-
-      ProgressBar progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
-      progress.setMax(1000);
-      progress.setProgress(0);
-      progress.setProgressTintList(ColorStateList.valueOf(COLOR_PROGRESS));
-      progress.setPadding(0, 0, 0, 0);
-      progress.setScaleY(65f);
-      FrameLayout.LayoutParams progParams = new FrameLayout.LayoutParams(
-          FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
-      progress.setLayoutParams(progParams);
-      container.addView(progress);
-
-      TextView label = new TextView(this);
-      label.setText(pads[i].label);
-      label.setTextSize(20);
-      label.setTextColor(Color.WHITE);
-      label.setGravity(Gravity.CENTER);
-      FrameLayout.LayoutParams labelParams = new FrameLayout.LayoutParams(
-          FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
-      label.setLayoutParams(labelParams);
-      container.addView(label);
-
-      container.setOnClickListener(v -> onPadTapped(index));
-      container.setOnLongClickListener(v -> {
-        showPadMenu(index);
-        return true;
-      });
-
-      GridLayout.LayoutParams p = new GridLayout.LayoutParams();
-      p.width = 0;
-      p.height = 0;
-      p.columnSpec = GridLayout.spec(i % cols, 1f);
-      p.rowSpec = GridLayout.spec(i / cols, 1f);
-      p.setMargins(6, 6, 6, 6);
-      container.setLayoutParams(p);
-
-      PadView pv = new PadView();
-      pv.container = container;
-      pv.progress = progress;
-      pv.label = label;
-      padViews[i] = pv;
-
-      grid.addView(container);
-    }
-
-    storage.saveGridIndex(gridIndex);
-    refreshPadColors();
-  }
-
-  private void onPadTapped(int index) {
-    if (pads[index].filePath == null) {
-      showPadMenu(index);
+  private void startAutoRecording() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && checkSelfPermission(
+        Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+      requestAudioPermission();
       return;
     }
+    String path = MediaFileManager.createRecordFilePath();
+    if (path == null)
+      return;
 
-    if (index == audioPlayer.getCurrentPadIndex()) {
-      audioPlayer.togglePause();
-    } else {
-      audioPlayer.playNew(this, index, pads[index].filePath, padViews[index].progress,
-          this::refreshPadColors);
-    }
-    refreshPadColors();
-  }
-
-  private void refreshPadColors() {
-    int cols = GRID_SIZES[gridIndex][0];
-    int rows = GRID_SIZES[gridIndex][1];
-    int visible = cols * rows;
-    int currentPad = audioPlayer.getCurrentPadIndex();
-    boolean isPaused = audioPlayer.isPaused();
-
-    for (int i = 0; i < visible; i++) {
-      PadView pv = padViews[i];
-      if (pv == null)
-        continue;
-
-      int bg = COLOR_IDLE;
-      if (i == currentPad) {
-        bg = isPaused ? COLOR_PAUSED : COLOR_ACTIVE;
-      }
-      pv.container.setBackgroundColor(bg);
-
-      if (i != currentPad) {
-        pv.progress.setProgress(0);
-      }
+    if (audioRecorder.start(MainActivity.this, path, topBar.tvRecordTimer)) {
+      isRecordingMode = true;
+      updateKeepScreenFlag();
+      topBar.tvRecordIndicator.setVisibility(TextView.VISIBLE);
+      topBar.btnRecStart.setEnabled(false);
+      topBar.btnRecPause.setEnabled(true);
+      topBar.btnRecStop.setEnabled(true);
+      topBar.btnRecPause.setText("⏸");
     }
   }
 
-  // ================= МЕНЮ ПЭДА =================
+  // ================= ДИАЛОГИ И ИМПОРТ =================
 
   private void showPadMenu(final int index) {
-    final String[] items = { "✏️ Переименовать", "🎤 Записать сэмпл", "📂 Импорт аудио", // <--- Изменено
+    final String[] items = { "✏️ Переименовать", "🎤 Записать сэмпл", "📂 Импорт аудио",
         "🗑 Удалить сэмпл", "❌ Отмена" };
-
     new AlertDialog.Builder(this).setTitle("Пэд: " + pads[index].label)
         .setItems(items, (dialog, which) -> {
           switch (which) {
@@ -335,7 +336,7 @@ public class MainActivity extends Activity {
               break;
             case 2:
               importAudio(index);
-              break; // <--- Вызываем новый метод
+              break;
             case 3:
               deleteSample(index);
               break;
@@ -343,40 +344,31 @@ public class MainActivity extends Activity {
         }).show();
   }
 
-  // Открываем системный файловый менеджер
   private void importAudio(int padIndex) {
     Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-    intent.setType("audio/*"); // Показываем только аудиофайлы
+    intent.setType("audio/*");
     intent.addCategory(Intent.CATEGORY_OPENABLE);
-
-    // Сохраняем индекс пэда, чтобы знать, куда привязать файл после выбора
-    // (используем requestCode для передачи индекса)
     try {
       startActivityForResult(Intent.createChooser(intent, "Выберите аудиофайл"),
           REQ_PICK_AUDIO + padIndex);
     } catch (android.content.ActivityNotFoundException ex) {
-      Toast.makeText(this, "Пожалуйста, установите файловый менеджер", Toast.LENGTH_SHORT).show();
+      Toast.makeText(this, "Установите файловый менеджер", Toast.LENGTH_SHORT).show();
     }
   }
 
-  // Обрабатываем результат выбора файла
   @Override
   protected void onActivityResult(int requestCode, int resultCode, Intent data) {
     super.onActivityResult(requestCode, resultCode, data);
-
     if (requestCode >= REQ_PICK_AUDIO && requestCode <= REQ_PICK_AUDIO + MAX_PADS
         && resultCode == RESULT_OK) {
-      int padIndex = requestCode - REQ_PICK_AUDIO; // Восстанавливаем индекс пэда
-
+      int padIndex = requestCode - REQ_PICK_AUDIO;
       if (data != null && data.getData() != null) {
-        Uri sourceUri = data.getData();
-
-        // Сохраняем файл во внутреннюю память приложения, чтобы он не пропал
-        String destPath = copyAudioToInternalStorage(sourceUri, padIndex);
-
+        String destPath = MediaFileManager.copyAudioToInternalStorage(this, data.getData(),
+            padIndex);
         if (destPath != null) {
           pads[padIndex].filePath = destPath;
           storage.savePads(pads);
+          updateDurationText(padIndex);
           Toast.makeText(this, "Файл импортирован на пэд", Toast.LENGTH_SHORT).show();
         } else {
           Toast.makeText(this, "Ошибка импорта файла", Toast.LENGTH_SHORT).show();
@@ -385,40 +377,10 @@ public class MainActivity extends Activity {
     }
   }
 
-  // Копируем выбранный файл во внутреннюю папку приложения
-  private String copyAudioToInternalStorage(Uri sourceUri, int padIndex) {
-    try {
-      // Создаем файл для копии
-      File destFile = new File(getFilesDir(), "imported_" + padIndex + ".m4a");
-
-      // Открываем потоки для чтения и записи
-      java.io.InputStream is = getContentResolver().openInputStream(sourceUri);
-      java.io.FileOutputStream os = new java.io.FileOutputStream(destFile);
-
-      if (is == null)
-        return null;
-
-      byte[] buffer = new byte[4096];
-      int length;
-      while ((length = is.read(buffer)) > 0) {
-        os.write(buffer, 0, length);
-      }
-
-      os.close();
-      is.close();
-
-      return destFile.getAbsolutePath();
-    } catch (Exception e) {
-      e.printStackTrace();
-      return null;
-    }
-  }
-
   private void renamePad(final int index) {
     EditText input = new EditText(this);
     input.setText(pads[index].label);
     input.setSelection(input.getText().length());
-
     new AlertDialog.Builder(this).setTitle("Новое имя пэда").setView(input)
         .setPositiveButton("OK", (d, w) -> {
           String name = input.getText().toString().trim();
@@ -437,6 +399,7 @@ public class MainActivity extends Activity {
       storage.savePads(pads);
       if (audioPlayer.getCurrentPadIndex() == index)
         audioPlayer.stopAll();
+      updateDurationText(index);
       refreshPadColors();
       Toast.makeText(this, "Сэмпл удалён", Toast.LENGTH_SHORT).show();
     }
@@ -454,7 +417,6 @@ public class MainActivity extends Activity {
 
     final Button btnRec = new Button(this);
     btnRec.setText("🎤 Записать");
-
     layout.addView(tvTime);
     layout.addView(btnRec);
 
@@ -479,16 +441,49 @@ public class MainActivity extends Activity {
         tvTime.setText("Готово ✓");
         pads[index].filePath = path;
         storage.savePads(pads);
+        updateDurationText(index);
         Toast.makeText(this, "Сэмпл сохранён", Toast.LENGTH_SHORT).show();
       }
     });
-
     dialog.show();
   }
 
   // ================= НАСТРОЙКИ И РАЗРЕШЕНИЯ =================
 
-  private void showGridDialog() {
+  private void showSettingsMenu() {
+    String[] screenModes = { "Системно", "При записи", "Всегда" };
+    int currentMode = storage.getKeepScreenMode();
+
+    final String[] items = { "Размер сетки: " + GRID_NAMES[gridIndex],
+        "Автозапись при тапе: " + (storage.isAutoRecordEnabled() ? "ВКЛ" : "ВЫКЛ"),
+        "Не гасить экран: " + screenModes[currentMode] };
+
+    new AlertDialog.Builder(this).setTitle("Настройки").setItems(items, (dialog, which) -> {
+      if (which == 0) {
+        showGridSizeDialog();
+      } else if (which == 1) {
+        boolean newState = !storage.isAutoRecordEnabled();
+        storage.setAutoRecordEnabled(newState);
+        Toast.makeText(this, "Автозапись: " + (newState ? "ВКЛ" : "ВЫКЛ"), Toast.LENGTH_SHORT)
+            .show();
+      } else if (which == 2) {
+        showKeepScreenDialog();
+      }
+    }).show();
+  }
+
+  private void showKeepScreenDialog() {
+    final String[] modes = { "Системно (по умолчанию)", "Только при записи",
+        "Всегда, пока открыто" };
+    new AlertDialog.Builder(this).setTitle("Не гасить экран")
+        .setSingleChoiceItems(modes, storage.getKeepScreenMode(), (dialog, which) -> {
+          storage.setKeepScreenMode(which);
+          updateKeepScreenFlag(); // Применяем сразу
+          dialog.dismiss();
+        }).setNegativeButton("Отмена", null).show();
+  }
+
+  private void showGridSizeDialog() {
     new AlertDialog.Builder(this).setTitle("Размер сетки")
         .setSingleChoiceItems(GRID_NAMES, gridIndex, (dialog, which) -> {
           if (which != gridIndex) {
@@ -505,7 +500,7 @@ public class MainActivity extends Activity {
       if (checkSelfPermission(
           Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
         if (!shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO)) {
-          showSettingsDialog();
+          showPermissionSettingsDialog();
         } else {
           requestPermissions(new String[] { Manifest.permission.RECORD_AUDIO }, REQ_AUDIO);
         }
@@ -513,7 +508,7 @@ public class MainActivity extends Activity {
     }
   }
 
-  private void showSettingsDialog() {
+  private void showPermissionSettingsDialog() {
     new AlertDialog.Builder(this).setTitle("Нужно разрешение")
         .setMessage("Для записи нужен доступ к микрофону. Пожалуйста, разрешите его в настройках.")
         .setPositiveButton("Настройки", (dialog, which) -> {
