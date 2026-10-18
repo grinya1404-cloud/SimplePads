@@ -17,6 +17,9 @@ public class AudioRecorder {
     private Runnable timerRunnable;
     private long startTime = 0;
     private long pausedTime = 0;
+    
+    // Ссылка на таймер, чтобы возобновлять его после паузы
+    private TextView currentTimerView; 
 
     public AudioRecorder() {
         timerHandler = new Handler(Looper.getMainLooper());
@@ -38,7 +41,9 @@ public class AudioRecorder {
             startTime = System.currentTimeMillis();
             pausedTime = 0;
             
-            if (timerView != null) startTimer(timerView);
+            currentTimerView = timerView; // Сохраняем ссылку
+            
+            if (currentTimerView != null) startTimer(currentTimerView);
             return true;
         } catch (Exception e) {
             Toast.makeText(context, "Ошибка записи: " + e.getMessage(), Toast.LENGTH_LONG).show();
@@ -64,6 +69,9 @@ public class AudioRecorder {
                 recorder.resume();
                 isPaused = false;
                 startTime = System.currentTimeMillis();
+                
+                // Возобновляем таймер!
+                if (currentTimerView != null) startTimer(currentTimerView);
             } catch (Exception ignored) {}
         }
     }
@@ -84,6 +92,7 @@ public class AudioRecorder {
     public boolean isPaused() { return isPaused; }
 
     private void startTimer(TextView tv) {
+        stopTimer(); // Убираем старые коллбэки
         timerRunnable = new Runnable() {
             @Override
             public void run() {

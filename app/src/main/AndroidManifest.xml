@@ -6,8 +6,8 @@
 
     <application
         android:label="SimplePad"
-        android:theme="@android:style/Theme.Material.Light"
-        android:requestLegacyExternalStorage="true"> <!-- ВОТ ЭТА СТРОКА -->
+        android:theme="@android:style/Theme.Material.NoActionBar"
+        android:requestLegacyExternalStorage="true">
 
         <activity 
             android:name=".MainActivity"
