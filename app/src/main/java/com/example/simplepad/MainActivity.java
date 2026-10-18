@@ -1,18 +1,19 @@
-package com.example.simplepad; 
-//test
-import android.content.Intent;
-import android.net.Uri;
-import android.provider.Settings;
+package com.example.simplepad;
+
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
+import android.provider.Settings;
 import android.view.Gravity;
 import android.widget.Button;
 import android.widget.EditText;
@@ -24,6 +25,13 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
 
 public class MainActivity extends Activity {
 
@@ -55,6 +63,12 @@ public class MainActivity extends Activity {
 
   private SharedPreferences prefs;
 
+  // --- Диктофон (Верхняя панель) ---
+  private TextView tvRecordIndicator;
+  private TextView tvRecordTimer;
+  private Button btnRecStart, btnRecPause, btnRecStop;
+  private boolean isRecordingMode = false;
+
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
@@ -66,12 +80,54 @@ public class MainActivity extends Activity {
     root.setOrientation(LinearLayout.VERTICAL);
     root.setBackgroundColor(Color.parseColor("#1E1E1E"));
 
+    // ===== ВЕРХНЯЯ ПАНЕЛЬ ДИКТОФОНА =====
+    LinearLayout topBar = new LinearLayout(this);
+    topBar.setOrientation(LinearLayout.HORIZONTAL);
+    topBar.setGravity(Gravity.CENTER_VERTICAL);
+    topBar.setPadding(16, 16, 16, 8);
+    topBar.setBackgroundColor(Color.parseColor("#2C2C2C"));
+
+    tvRecordIndicator = new TextView(this);
+    tvRecordIndicator.setText("⚪");
+    tvRecordIndicator.setTextSize(24);
+    tvRecordIndicator.setTextColor(Color.RED);
+    tvRecordIndicator.setPadding(0, 0, 8, 0);
+
+    tvRecordTimer = new TextView(this);
+    tvRecordTimer.setText("00:00");
+    tvRecordTimer.setTextSize(18);
+    tvRecordTimer.setTextColor(Color.WHITE);
+    tvRecordTimer.setPadding(0, 0, 16, 0);
+    tvRecordTimer.setVisibility(TextView.GONE);
+
+    btnRecStart = new Button(this);
+    btnRecStart.setText("🎤");
+    btnRecPause = new Button(this);
+    btnRecPause.setText("⏸");
+    btnRecStop = new Button(this);
+    btnRecStop.setText("⏹");
+
+    btnRecPause.setEnabled(false);
+    btnRecStop.setEnabled(false);
+
+    LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+    btnParams.setMargins(8, 0, 8, 0);
+
+    topBar.addView(tvRecordIndicator);
+    topBar.addView(tvRecordTimer);
+    topBar.addView(btnRecStart, btnParams);
+    topBar.addView(btnRecPause, btnParams);
+    topBar.addView(btnRecStop, btnParams);
+
+    // ===== СЕТКА ПЭДОВ =====
     grid = new GridLayout(this);
     LinearLayout.LayoutParams gridParams = new LinearLayout.LayoutParams(
         LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
     grid.setLayoutParams(gridParams);
     grid.setPadding(8, 8, 8, 8);
 
+    // ===== НИЖНЯЯ ПАНЕЛЬ (Управление пэдами) =====
     LinearLayout bottomBar = new LinearLayout(this);
     bottomBar.setOrientation(LinearLayout.HORIZONTAL);
     bottomBar.setGravity(Gravity.CENTER);
@@ -109,6 +165,7 @@ public class MainActivity extends Activity {
     bottomBar.addView(btnStop);
     bottomBar.addView(btnSettings);
 
+    root.addView(topBar);
     root.addView(grid);
     root.addView(bottomBar);
     setContentView(root);
@@ -116,7 +173,61 @@ public class MainActivity extends Activity {
     loadPads();
     gridIndex = prefs.getInt("gridIndex", 1);
     applyGrid();
-    // requestAudioPermission();
+
+    // ===== ЛОГИКА КНОПОК ДИКТОФОНА =====
+
+    btnRecStart.setOnClickListener(v -> {
+      if (isRecordingMode)
+        return;
+
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && checkSelfPermission(
+          Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+        requestAudioPermission();
+        return;
+      }
+
+      String path = createRecordFilePath();
+      if (path == null)
+        return;
+
+      if (audioRecorder.start(MainActivity.this, path, tvRecordTimer)) {
+        isRecordingMode = true;
+        tvRecordIndicator.setText("🔴");
+        tvRecordTimer.setVisibility(TextView.VISIBLE);
+        btnRecStart.setEnabled(false);
+        btnRecPause.setEnabled(true);
+        btnRecStop.setEnabled(true);
+        btnRecPause.setText("⏸");
+      }
+    });
+
+    btnRecPause.setOnClickListener(v -> {
+      if (!isRecordingMode)
+        return;
+      if (audioRecorder.isPaused()) {
+        audioRecorder.resume();
+        btnRecPause.setText("⏸");
+        tvRecordIndicator.setText("🔴");
+      } else {
+        audioRecorder.pause();
+        btnRecPause.setText("▶️");
+        tvRecordIndicator.setText("⚪");
+      }
+    });
+
+    btnRecStop.setOnClickListener(v -> {
+      if (!isRecordingMode)
+        return;
+      audioRecorder.stop();
+      isRecordingMode = false;
+      tvRecordIndicator.setText("⚪");
+      tvRecordTimer.setVisibility(TextView.GONE);
+      tvRecordTimer.setText("00:00");
+      btnRecStart.setEnabled(true);
+      btnRecPause.setEnabled(false);
+      btnRecStop.setEnabled(false);
+      Toast.makeText(this, "Запись сохранена в Music/SimplePad", Toast.LENGTH_SHORT).show();
+    });
   }
 
   @Override
@@ -125,6 +236,8 @@ public class MainActivity extends Activity {
     audioPlayer.stopAll();
     audioRecorder.stop();
   }
+
+  // ================= СЕТКА =================
 
   private void applyGrid() {
     int cols = GRID_SIZES[gridIndex][0];
@@ -234,21 +347,12 @@ public class MainActivity extends Activity {
     }
   }
 
-  private void showGridDialog() {
-    new AlertDialog.Builder(this).setTitle("Размер сетки")
-        .setSingleChoiceItems(GRID_NAMES, gridIndex, (dialog, which) -> {
-          if (which != gridIndex) {
-            gridIndex = which;
-            applyGrid();
-            Toast.makeText(this, "Сетка: " + GRID_NAMES[which], Toast.LENGTH_SHORT).show();
-          }
-          dialog.dismiss();
-        }).setNegativeButton("Отмена", null).show();
-  }
+  // ================= МЕНЮ ПЭДА =================
 
   private void showPadMenu(final int index) {
-    final String[] items = { "✏️ Переименовать", "🎤 Записать сэмпл", "🗑 Удалить сэмпл",
-        "❌ Отмена" };
+    final String[] items = { "✏️ Переименовать", "🎤 Записать сэмпл", "📂 Загрузить из записей",
+        "🗑 Удалить сэмпл", "❌ Отмена" };
+
     new AlertDialog.Builder(this).setTitle("Пэд: " + pads[index].label)
         .setItems(items, (dialog, which) -> {
           switch (which) {
@@ -259,10 +363,37 @@ public class MainActivity extends Activity {
               recordSample(index);
               break;
             case 2:
+              showRecordingsList(index);
+              break;
+            case 3:
               deleteSample(index);
               break;
           }
         }).show();
+  }
+
+  private void showRecordingsList(final int padIndex) {
+    File dir = getRecordDirectory();
+    File[] files = dir.listFiles((d, name) -> name.endsWith(".m4a"));
+    if (files == null || files.length == 0) {
+      Toast.makeText(this, "Папка с записями пуста", Toast.LENGTH_SHORT).show();
+      return;
+    }
+
+    // Сортируем по дате (сначала новые)
+    Arrays.sort(files, (f1, f2) -> Long.compare(f2.lastModified(), f1.lastModified()));
+
+    final String[] fileNames = new String[files.length];
+    for (int i = 0; i < files.length; i++) {
+      fileNames[i] = files[i].getName();
+    }
+
+    new AlertDialog.Builder(this).setTitle("Выберите запись")
+        .setItems(fileNames, (dialog, which) -> {
+          pads[padIndex].filePath = files[which].getAbsolutePath();
+          savePads();
+          Toast.makeText(this, "Запись привязана к пэду", Toast.LENGTH_SHORT).show();
+        }).setNegativeButton("Отмена", null).show();
   }
 
   private void renamePad(final int index) {
@@ -284,7 +415,6 @@ public class MainActivity extends Activity {
 
   private void deleteSample(int index) {
     if (pads[index].filePath != null) {
-      new File(pads[index].filePath).delete();
       pads[index].filePath = null;
       savePads();
       if (audioPlayer.getCurrentPadIndex() == index)
@@ -318,7 +448,6 @@ public class MainActivity extends Activity {
 
     btnRec.setOnClickListener(v -> {
       if (!audioRecorder.isRecording()) {
-        // Проверяем разрешение перед стартом
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && checkSelfPermission(
             Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
           requestAudioPermission();
@@ -339,6 +468,40 @@ public class MainActivity extends Activity {
     });
 
     dialog.show();
+  }
+
+  // ================= ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ =================
+
+  private File getRecordDirectory() {
+    File musicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC);
+    File appDir = new File(musicDir, "SimplePad");
+    if (!appDir.exists()) {
+      appDir.mkdirs();
+    }
+    return appDir;
+  }
+
+  private String createRecordFilePath() {
+    File dir = getRecordDirectory();
+    if (!dir.exists())
+      return null;
+
+    String timeStamp = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault())
+        .format(new Date());
+    String fileName = "REC_" + timeStamp + ".m4a";
+    return new File(dir, fileName).getAbsolutePath();
+  }
+
+  private void showGridDialog() {
+    new AlertDialog.Builder(this).setTitle("Размер сетки")
+        .setSingleChoiceItems(GRID_NAMES, gridIndex, (dialog, which) -> {
+          if (which != gridIndex) {
+            gridIndex = which;
+            applyGrid();
+            Toast.makeText(this, "Сетка: " + GRID_NAMES[which], Toast.LENGTH_SHORT).show();
+          }
+          dialog.dismiss();
+        }).setNegativeButton("Отмена", null).show();
   }
 
   private void savePads() {
@@ -362,7 +525,6 @@ public class MainActivity extends Activity {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
       if (checkSelfPermission(
           Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-        // Если пользователь уже отказывал, показываем диалог с переходом в настройки
         if (!shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO)) {
           showSettingsDialog();
         } else {
@@ -373,8 +535,8 @@ public class MainActivity extends Activity {
   }
 
   private void showSettingsDialog() {
-    new AlertDialog.Builder(this).setTitle("Нужно разрешение").setMessage(
-        "Для записи сэмплов нужен доступ к микрофону. Пожалуйста, разрешите его в настройках приложения.")
+    new AlertDialog.Builder(this).setTitle("Нужно разрешение")
+        .setMessage("Для записи нужен доступ к микрофону. Пожалуйста, разрешите его в настройках.")
         .setPositiveButton("Настройки", (dialog, which) -> {
           Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
           intent.setData(Uri.parse("package:" + getPackageName()));
@@ -390,12 +552,7 @@ public class MainActivity extends Activity {
       if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
         Toast.makeText(this, "Микрофон разрешён", Toast.LENGTH_SHORT).show();
       } else {
-        Toast.makeText(this, "Без разрешения на микрофон запись не работает", Toast.LENGTH_LONG)
-            .show();
-        // Если отказ был окончательным, предложим перейти в настройки
-        if (!shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO)) {
-          showSettingsDialog();
-        }
+        Toast.makeText(this, "Без разрешения запись не работает", Toast.LENGTH_LONG).show();
       }
     }
   }

@@ -2,6 +2,7 @@ package com.example.simplepad;
 
 import android.content.Context;
 import android.media.MediaRecorder;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.widget.TextView;
@@ -11,9 +12,11 @@ public class AudioRecorder {
 
     private MediaRecorder recorder;
     private boolean isRecording = false;
+    private boolean isPaused = false;
     private Handler timerHandler;
     private Runnable timerRunnable;
     private long startTime = 0;
+    private long pausedTime = 0;
 
     public AudioRecorder() {
         timerHandler = new Handler(Looper.getMainLooper());
@@ -31,7 +34,9 @@ public class AudioRecorder {
             recorder.prepare();
             recorder.start();
             isRecording = true;
+            isPaused = false;
             startTime = System.currentTimeMillis();
+            pausedTime = 0;
             
             if (timerView != null) startTimer(timerView);
             return true;
@@ -43,6 +48,26 @@ public class AudioRecorder {
         }
     }
 
+    public void pause() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isRecording && !isPaused) {
+            try {
+                recorder.pause();
+                isPaused = true;
+                pausedTime += System.currentTimeMillis() - startTime;
+            } catch (Exception ignored) {}
+        }
+    }
+
+    public void resume() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isRecording && isPaused) {
+            try {
+                recorder.resume();
+                isPaused = false;
+                startTime = System.currentTimeMillis();
+            } catch (Exception ignored) {}
+        }
+    }
+
     public void stop() {
         if (!isRecording || recorder == null) return;
         try {
@@ -51,19 +76,19 @@ public class AudioRecorder {
         recorder.release();
         recorder = null;
         isRecording = false;
+        isPaused = false;
         stopTimer();
     }
 
-    public boolean isRecording() {
-        return isRecording;
-    }
+    public boolean isRecording() { return isRecording; }
+    public boolean isPaused() { return isPaused; }
 
     private void startTimer(TextView tv) {
         timerRunnable = new Runnable() {
             @Override
             public void run() {
-                if (!isRecording) return;
-                long ms = System.currentTimeMillis() - startTime;
+                if (!isRecording || isPaused) return;
+                long ms = pausedTime + (System.currentTimeMillis() - startTime);
                 tv.setText(String.format("%02d:%02d", ms / 60000, (ms / 1000) % 60));
                 timerHandler.postDelayed(this, 200);
             }

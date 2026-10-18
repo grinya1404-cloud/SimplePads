@@ -2,14 +2,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.simplepad">
 
-    <!-- Разрешение для записи звука с микрофона -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <application
         android:label="SimplePad"
-        android:theme="@android:style/Theme.Material.Light">
+        android:theme="@android:style/Theme.Material.Light"
+        android:requestLegacyExternalStorage="true"> <!-- ВОТ ЭТА СТРОКА -->
 
-        <!-- Главный экран приложения -->
         <activity 
             android:name=".MainActivity"
             android:exported="true">
