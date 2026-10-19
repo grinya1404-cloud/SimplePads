@@ -54,4 +54,29 @@ public class PadStorage {
   public void setAutoRecordEnabled(boolean enabled) {
     prefs.edit().putBoolean("auto_record", enabled).apply();
   }
+
+  // --- Vox настройки ---
+  public boolean isVoxEnabled() {
+    return prefs.getBoolean("vox_enabled", false);
+  }
+
+  public void setVoxEnabled(boolean enabled) {
+    prefs.edit().putBoolean("vox_enabled", enabled).apply();
+  }
+
+  public int getVoxThreshold() {
+    return prefs.getInt("vox_threshold", 3000); // По умолчанию 3000
+  }
+
+  public void setVoxThreshold(int threshold) {
+    prefs.edit().putInt("vox_threshold", threshold).apply();
+  }
+
+  public int getVoxSilenceTimeout() {
+    return prefs.getInt("vox_silence_timeout", 3); // По умолчанию 3 секунды
+  }
+
+  public void setVoxSilenceTimeout(int seconds) {
+    prefs.edit().putInt("vox_silence_timeout", seconds).apply();
+  }
 }

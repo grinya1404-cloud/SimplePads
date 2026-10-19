@@ -5,22 +5,23 @@ import android.graphics.Color;
 import android.view.Gravity;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 public class TopBarView extends LinearLayout {
 
     public TextView tvRecordIndicator;
     public TextView tvRecordTimer;
+    public ProgressBar voxLevelBar; // <--- Новый индикатор
     public Button btnRecStart, btnRecPause, btnRecStop;
 
     public TopBarView(Context context) {
         super(context);
         setOrientation(HORIZONTAL);
-        setGravity(Gravity.CENTER_VERTICAL | Gravity.END); // Прижимаем всё вправо
+        setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
         setPadding(16, 16, 16, 8);
         setBackgroundColor(Color.parseColor("#2C2C2C"));
 
-        // 1. Красная точка (скрыта по умолчанию)
         tvRecordIndicator = new TextView(context);
         tvRecordIndicator.setText("●");
         tvRecordIndicator.setTextSize(24);
@@ -28,14 +29,19 @@ public class TopBarView extends LinearLayout {
         tvRecordIndicator.setPadding(0, 0, 8, 0);
         tvRecordIndicator.setVisibility(GONE);
 
-        // 2. Таймер (Всегда на экране, чтобы кнопки не прыгали)
         tvRecordTimer = new TextView(context);
         tvRecordTimer.setText("00:00");
         tvRecordTimer.setTextSize(18);
         tvRecordTimer.setTextColor(Color.WHITE);
         tvRecordTimer.setPadding(0, 0, 16, 0);
 
-        // 3. Кнопки
+        // Индикатор Vox (уровень сигнала)
+        voxLevelBar = new ProgressBar(context, null, android.R.attr.progressBarStyleHorizontal);
+        voxLevelBar.setMax(32767); // Максимальная амплитуда
+        voxLevelBar.setProgress(0);
+        voxLevelBar.setPadding(0, 0, 8, 0);
+        voxLevelBar.setVisibility(GONE); // Показываем только когда включен Vox
+
         btnRecStart = new Button(context);
         btnRecStart.setText("REC");
         btnRecStart.setTextColor(Color.WHITE);
@@ -53,8 +59,12 @@ public class TopBarView extends LinearLayout {
                 LayoutParams.WRAP_CONTENT);
         btnParams.setMargins(8, 0, 8, 0);
 
+        LayoutParams voxParams = new LayoutParams(100, 20); // Фиксированный размер
+        voxParams.setMargins(8, 0, 8, 0);
+
         addView(tvRecordIndicator);
         addView(tvRecordTimer);
+        addView(voxLevelBar, voxParams);
         addView(btnRecStart, btnParams);
         addView(btnRecPause, btnParams);
         addView(btnRecStop, btnParams);
