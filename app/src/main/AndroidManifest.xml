@@ -5,6 +5,8 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <application
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:icon="@mipmap/ic_launcher"
         android:label="SimplePad"
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:requestLegacyExternalStorage="true">
