@@ -2,12 +2,15 @@ package com.example.simplepad;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
-import android.app.AlertDialog;
+import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -19,6 +22,10 @@ public class RecordManager {
     private final OnRecordingStateChanged listener;
 
     private boolean isRecordingMode = false;
+    
+    // Для индикатора
+    private Handler indicatorHandler;
+    private Runnable indicatorRunnable;
 
     public interface OnRecordingStateChanged {
         void onStateChanged(boolean isRecording);
@@ -29,6 +36,7 @@ public class RecordManager {
         this.recorder = recorder;
         this.topBar = topBar;
         this.listener = listener;
+        this.indicatorHandler = new Handler(Looper.getMainLooper());
         setupButtons();
     }
 
@@ -56,11 +64,13 @@ public class RecordManager {
             if (recorder.isPaused()) {
                 recorder.resume();
                 topBar.btnRecPause.setText("⏸");
-                topBar.tvRecordIndicator.setVisibility(TextView.VISIBLE);
+                topBar.tvRecordIndicator.setVisibility(View.VISIBLE);
+                startIndicator(); // Возобновляем индикатор
             } else {
                 recorder.pause();
                 topBar.btnRecPause.setText("▶️");
-                topBar.tvRecordIndicator.setVisibility(TextView.INVISIBLE);
+                topBar.tvRecordIndicator.setVisibility(View.INVISIBLE);
+                stopIndicator(); // Останавливаем индикатор
             }
         });
 
@@ -74,18 +84,47 @@ public class RecordManager {
 
     private void setRecordingState(boolean isRecording) {
         isRecordingMode = isRecording;
-        topBar.tvRecordIndicator.setVisibility(isRecording ? TextView.VISIBLE : TextView.GONE);
+        topBar.tvRecordIndicator.setVisibility(isRecording ? View.VISIBLE : View.INVISIBLE);
         topBar.btnRecStart.setEnabled(!isRecording);
         topBar.btnRecPause.setEnabled(isRecording);
         topBar.btnRecStop.setEnabled(isRecording);
         topBar.btnRecPause.setText("⏸");
+
+        if (isRecording) {
+            topBar.voxLevelBar.setVisibility(View.VISIBLE);
+            startIndicator();
+        } else {
+            topBar.voxLevelBar.setVisibility(View.INVISIBLE);
+            stopIndicator();
+        }
 
         if (listener != null) {
             listener.onStateChanged(isRecording);
         }
     }
 
-    // Запуск записи программно (для автозаписи)
+    // --- Логика обновления индикатора ---
+    private void startIndicator() {
+        stopIndicator(); // Убираем старые
+        indicatorRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (!isRecordingMode) return;
+                int amp = recorder.getAmplitude();
+                topBar.voxLevelBar.setProgress(amp);
+                indicatorHandler.postDelayed(this, 50); // Обновляем каждые 50 мс
+            }
+        };
+        indicatorHandler.post(indicatorRunnable);
+    }
+
+    private void stopIndicator() {
+        if (indicatorRunnable != null) {
+            indicatorHandler.removeCallbacks(indicatorRunnable);
+            indicatorRunnable = null;
+        }
+    }
+
     public void startAutoRecording() {
         if (isRecordingMode) return;
         if (!hasPermission()) {
