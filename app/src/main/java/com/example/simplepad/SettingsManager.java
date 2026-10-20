@@ -2,7 +2,6 @@ package com.example.simplepad;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.view.WindowManager;
 import android.widget.Toast;
 
 public class SettingsManager {
@@ -10,45 +9,60 @@ public class SettingsManager {
     private final Activity activity;
     private final PadStorage storage;
     private final GridLayoutUpdater gridUpdater;
-    private final Runnable onScreenModeChanged;
-    private final Runnable onGridChanged;
+    private final SettingsChangeListener settingsChangeListener; // <-- Объявлено как поле
 
     public interface GridLayoutUpdater {
         void updateGridSize(int newGridIndex);
     }
 
+    public interface SettingsChangeListener {
+        void onSettingsChanged();
+    }
+
     public SettingsManager(Activity activity, PadStorage storage, 
-                           GridLayoutUpdater gridUpdater,
-                           Runnable onScreenModeChanged, 
-                           Runnable onGridChanged) {
+                           GridLayoutUpdater gridUpdater, 
+                           SettingsChangeListener settingsChangeListener) {
         this.activity = activity;
         this.storage = storage;
         this.gridUpdater = gridUpdater;
-        this.onScreenModeChanged = onScreenModeChanged;
-        this.onGridChanged = onGridChanged;
+        this.settingsChangeListener = settingsChangeListener;
     }
 
     public void showMainMenu(String currentGridName, boolean isAutoRecordEnabled) {
         String[] screenModes = {"Системно", "При записи", "Всегда"};
         int currentMode = storage.getKeepScreenMode();
+        
+        String voxIndicatorStatus = storage.isVoxIndicatorEnabled() ? "ВКЛ" : "ВЫКЛ";
 
         final String[] items = {
                 "Размер сетки: " + currentGridName,
                 "Автозапись при тапе: " + (isAutoRecordEnabled ? "ВКЛ" : "ВЫКЛ"),
-                "Не гасить экран: " + screenModes[currentMode]
+                "Не гасить экран: " + screenModes[currentMode],
+                "Vox-индикатор (уровень): " + voxIndicatorStatus // <-- Новый пункт
         };
 
         new AlertDialog.Builder(activity)
                 .setTitle("Настройки")
                 .setItems(items, (dialog, which) -> {
-                    if (which == 0) {
-                        showGridSizeDialog();
-                    } else if (which == 1) {
-                        boolean newState = !storage.isAutoRecordEnabled();
-                        storage.setAutoRecordEnabled(newState);
-                        Toast.makeText(activity, "Автозапись: " + (newState ? "ВКЛ" : "ВЫКЛ"), Toast.LENGTH_SHORT).show();
-                    } else if (which == 2) {
-                        showKeepScreenDialog();
+                    switch (which) {
+                        case 0:
+                            showGridSizeDialog();
+                            break;
+                        case 1:
+                            boolean newAutoRecord = !storage.isAutoRecordEnabled();
+                            storage.setAutoRecordEnabled(newAutoRecord);
+                            Toast.makeText(activity, "Автозапись: " + (newAutoRecord ? "ВКЛ" : "ВЫКЛ"), Toast.LENGTH_SHORT).show();
+                            if (settingsChangeListener != null) settingsChangeListener.onSettingsChanged();
+                            break;
+                        case 2:
+                            showKeepScreenDialog();
+                            break;
+                        case 3:
+                            boolean newVox = !storage.isVoxIndicatorEnabled();
+                            storage.setVoxIndicatorEnabled(newVox);
+                            Toast.makeText(activity, "Vox-индикатор: " + (newVox ? "ВКЛ" : "ВЫКЛ"), Toast.LENGTH_SHORT).show();
+                            if (settingsChangeListener != null) settingsChangeListener.onSettingsChanged();
+                            break;
                     }
                 })
                 .show();
@@ -63,7 +77,7 @@ public class SettingsManager {
                 .setSingleChoiceItems(gridNames, currentIndex, (dialog, which) -> {
                     if (which != currentIndex) {
                         gridUpdater.updateGridSize(which);
-                        onGridChanged.run();
+                        if (settingsChangeListener != null) settingsChangeListener.onSettingsChanged();
                         Toast.makeText(activity, "Сетка: " + gridNames[which], Toast.LENGTH_SHORT).show();
                     }
                     dialog.dismiss();
@@ -78,7 +92,7 @@ public class SettingsManager {
                 .setTitle("Не гасить экран")
                 .setSingleChoiceItems(modes, storage.getKeepScreenMode(), (dialog, which) -> {
                     storage.setKeepScreenMode(which);
-                    onScreenModeChanged.run(); // Применяем сразу
+                    if (settingsChangeListener != null) settingsChangeListener.onSettingsChanged();
                     dialog.dismiss();
                 })
                 .setNegativeButton("Отмена", null)

@@ -54,4 +54,13 @@ public class PadStorage {
   public void setAutoRecordEnabled(boolean enabled) {
     prefs.edit().putBoolean("auto_record", enabled).apply();
   }
+
+  // --- Настройка Vox-индикатора ---
+  public boolean isVoxIndicatorEnabled() {
+    return prefs.getBoolean("vox_indicator", false);
+  }
+
+  public void setVoxIndicatorEnabled(boolean enabled) {
+    prefs.edit().putBoolean("vox_indicator", enabled).apply();
+  }
 }

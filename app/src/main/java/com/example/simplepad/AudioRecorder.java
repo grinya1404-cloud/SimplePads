@@ -124,14 +124,91 @@ public class AudioRecorder {
     }
   }
 
+  
+
+  // --- Для фонового прослушивания (Vox-индикатор) ---
+  private android.media.AudioRecord backgroundRecorder;
+  private boolean isBackgroundListening = false;
+  private Thread backgroundThread;
+
+  public void startBackgroundListening() {
+    if (isBackgroundListening)
+      return;
+    isBackgroundListening = true;
+
+    int sampleRate = 44100;
+    int channelConfig = android.media.AudioFormat.CHANNEL_IN_MONO;
+    int audioFormat = android.media.AudioFormat.ENCODING_PCM_16BIT;
+    int minBufferSize = android.media.AudioRecord.getMinBufferSize(sampleRate, channelConfig,
+        audioFormat);
+
+    try {
+      backgroundRecorder = new android.media.AudioRecord(
+          android.media.MediaRecorder.AudioSource.MIC, sampleRate, channelConfig, audioFormat,
+          minBufferSize);
+
+      if (backgroundRecorder.getState() != android.media.AudioRecord.STATE_INITIALIZED) {
+        isBackgroundListening = false;
+        return;
+      }
+
+      backgroundRecorder.startRecording();
+
+      backgroundThread = new Thread(() -> {
+        short[] buffer = new short[minBufferSize / 2];
+        while (isBackgroundListening) {
+          int read = backgroundRecorder.read(buffer, 0, buffer.length);
+          if (read > 0) {
+            int max = 0;
+            for (int i = 0; i < read; i++) {
+              if (Math.abs(buffer[i]) > max)
+                max = Math.abs(buffer[i]);
+            }
+            // Сохраняем уровень в поле, чтобы getAmplitude() мог его вернуть
+            backgroundAmplitude = max;
+          }
+        }
+      });
+      backgroundThread.start();
+
+    } catch (Exception e) {
+      isBackgroundListening = false;
+    }
+  }
+
+  public void stopBackgroundListening() {
+    isBackgroundListening = false;
+    if (backgroundThread != null) {
+      try {
+        backgroundThread.join(500);
+      } catch (Exception ignored) {
+      }
+      backgroundThread = null;
+    }
+    if (backgroundRecorder != null) {
+      try {
+        backgroundRecorder.stop();
+      } catch (Exception ignored) {
+      }
+      try {
+        backgroundRecorder.release();
+      } catch (Exception ignored) {
+      }
+      backgroundRecorder = null;
+    }
+  }
+
+  private int backgroundAmplitude = 0;
+
   public int getAmplitude() {
-    if (recorder != null && isRecording && !isPaused) {
+    if (recorder != null && isRecording) {
       try {
         return recorder.getMaxAmplitude();
       } catch (Exception e) {
         return 0;
       }
     }
-    return 0;
+    // Если запись не идёт, возвращаем уровень из фонового слушателя
+    return backgroundAmplitude;
   }
 }
