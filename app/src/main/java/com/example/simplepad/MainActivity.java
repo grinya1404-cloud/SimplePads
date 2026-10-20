@@ -42,6 +42,8 @@ public class MainActivity extends Activity {
 
   private Handler voxHandler = new Handler(Looper.getMainLooper());
   private Runnable voxRunnable;
+  private long voxSilenceStart = 0;
+  private boolean voxIsRecording = false;
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
@@ -343,23 +345,56 @@ public class MainActivity extends Activity {
   }
 
   private void startVoxIndicatorIfEnabled() {
-    if (storage.isVoxIndicatorEnabled()) {
+    if (storage.isVoxIndicatorEnabled() || storage.isVoxAutoEnabled()) {
       startVoxListening();
     } else {
       stopVoxListening();
-      // При выключенном Vox просто сбрасываем индикатор на 0 (он остаётся на месте)
       topBar.voxLevelBar.setProgress(0);
     }
   }
 
   private void startVoxListening() {
     stopVoxListening();
-    audioRecorder.startBackgroundListening(); // <--- Запускаем слушатель микрофона
+    audioRecorder.startBackgroundListening();
+    voxSilenceStart = 0;
+
     voxRunnable = new Runnable() {
       @Override
       public void run() {
         int amp = audioRecorder.getAmplitude();
         topBar.voxLevelBar.setProgress(amp);
+
+        boolean isVoxAuto = storage.isVoxAutoEnabled();
+        int threshold = storage.getVoxThreshold();
+        int timeoutSec = storage.getVoxSilenceTimeout();
+
+        // Получаем реальное состояние записи из RecordManager
+        boolean isActuallyRecording = recordManager != null && recordManager.isRecordingMode();
+        // Проверяем, не на паузе ли запись
+        boolean isPaused = audioRecorder.isPaused();
+
+        if (isVoxAuto && !isPaused) { // Если на паузе, Vox не вмешивается!
+          if (!isActuallyRecording && amp > threshold) {
+            // СТАРТ: Программно нажимаем REC
+            if (!recordManager.isRecordingMode()) {
+              topBar.btnRecStart.performClick();
+              voxSilenceStart = 0;
+            }
+          } else if (isActuallyRecording) {
+            // СТОП: Если пишем и наступила тишина
+            if (amp < threshold) {
+              if (voxSilenceStart == 0) {
+                voxSilenceStart = System.currentTimeMillis();
+              } else if (System.currentTimeMillis() - voxSilenceStart > timeoutSec * 1000L) {
+                topBar.btnRecStop.performClick();
+                voxSilenceStart = 0;
+              }
+            } else {
+              voxSilenceStart = 0;
+            }
+          }
+        }
+
         voxHandler.postDelayed(this, 50);
       }
     };
@@ -371,7 +406,7 @@ public class MainActivity extends Activity {
       voxHandler.removeCallbacks(voxRunnable);
       voxRunnable = null;
     }
-    audioRecorder.stopBackgroundListening(); // <--- Останавливаем слушатель
+    audioRecorder.stopBackgroundListening();
   }
 
   private void recordSample(final int index) {
