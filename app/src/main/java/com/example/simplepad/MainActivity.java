@@ -13,9 +13,7 @@ import android.widget.GridLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
-
 import java.io.File;
-
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
