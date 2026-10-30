@@ -148,6 +148,7 @@ public class MainActivity extends Activity {
 
   // ================= СЕТКА =================
 
+
   private void applyGrid() {
     int cols = GRID_SIZES[gridIndex][0];
     int rows = GRID_SIZES[gridIndex][1];
