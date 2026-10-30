@@ -35,12 +35,12 @@ public class TopBarView extends LinearLayout {
         tvRecordTimer.setTextColor(Color.WHITE);
         tvRecordTimer.setPadding(0, 0, 16, 0);
 
-        // Индикатор уровня (скрыт по умолчанию)
+        // Индикатор уровня (скрыт по умолчанию, уже нет)
         voxLevelBar = new ProgressBar(context, null, android.R.attr.progressBarStyleHorizontal);
         voxLevelBar.setMax(32767); // Максимальная амплитуда
         voxLevelBar.setProgress(0);
         voxLevelBar.setPadding(0, 0, 8, 0);
-        voxLevelBar.setVisibility(INVISIBLE);
+        voxLevelBar.setVisibility(VISIBLE);
 
         btnRecStart = new Button(context);
         btnRecStart.setText("REC");
