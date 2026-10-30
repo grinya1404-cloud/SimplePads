@@ -46,7 +46,7 @@ resources = ["src/test/resources"]
 [android]
 namespace = "com.example.simplepad"
 compileSdk = 36
-minSdk = 26
+minSdk = 24
 targetSdk = 34
 manifest = "src/main/AndroidManifest.xml"
 versionCode = 1
