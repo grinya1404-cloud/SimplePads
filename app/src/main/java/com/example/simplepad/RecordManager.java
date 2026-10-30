@@ -13,6 +13,7 @@ import android.provider.Settings;
 import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
+import java.io.File;
 
 public class RecordManager {
 
@@ -53,7 +54,8 @@ public class RecordManager {
         requestPermission();
         return;
       }
-      String path = MediaFileManager.createRecordFilePath();
+
+      String path = MediaFileManager.createRecordFilePath(activity);
       if (path == null)
         return;
 
@@ -142,7 +144,7 @@ public class RecordManager {
       requestPermission();
       return;
     }
-    String path = MediaFileManager.createRecordFilePath();
+    String path = MediaFileManager.createRecordFilePath(activity);
     if (path == null)
       return;
 
