@@ -1,5 +1,5 @@
 package com.example.simplepad;
-
+// a7
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
