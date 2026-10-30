@@ -175,4 +175,16 @@ public class RecordManager {
           activity.startActivity(intent);
         }).setNegativeButton("Отмена", null).show();
   }
+
+  public void onRequestPermissionResult(int requestCode, String[] permissions, int[] grantResults) {
+    if (requestCode != 100)
+      return;
+    if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+      // Разрешение получено —повторяем отложенное действие, если запись всё ещё нужна
+      if (isRecordingMode)
+        return;
+      // Пользователь мог нажимать REC во время запроса — ничего не стартуем автоматически,
+      // повторное нажатие кнопки запустит запись уже с разрешением.
+    }
+  }
 }

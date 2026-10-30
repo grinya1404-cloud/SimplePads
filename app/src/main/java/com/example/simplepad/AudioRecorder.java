@@ -1,6 +1,7 @@
 package com.example.simplepad;
 
 import android.content.Context;
+import android.content.Intent;
 import android.media.MediaRecorder;
 import android.os.Build;
 import android.os.Handler;
@@ -21,8 +22,16 @@ public class AudioRecorder {
   // Ссылка на таймер, чтобы возобновлять его после паузы
   private TextView currentTimerView;
 
-  public AudioRecorder() {
+  private final Context context;
+
+  // Фоновое прослушивание (Vox): на Android 8+ через VoxService, иначе локальный поток
+  private VoxService voxService;
+  private boolean useVoxService;
+
+  public AudioRecorder(Context context) {
+    this.context = context.getApplicationContext();
     timerHandler = new Handler(Looper.getMainLooper());
+    useVoxService = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O;
   }
 
   public boolean start(Context context, String path, TextView timerView) {
@@ -127,15 +136,48 @@ public class AudioRecorder {
   
 
   // --- Для фонового прослушивания (Vox-индикатор) ---
+  // На Android 8+ используется VoxService (foreground service), иначе локальный поток
   private android.media.AudioRecord backgroundRecorder;
   private boolean isBackgroundListening = false;
   private Thread backgroundThread;
+  private int backgroundAmplitude = 0;
 
   public void startBackgroundListening() {
     if (isBackgroundListening)
       return;
     isBackgroundListening = true;
 
+    if (useVoxService) {
+      Intent intent = new Intent(context, VoxService.class);
+      if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+        context.startForegroundService(intent);
+      } else {
+        context.startService(intent);
+      }
+      voxService = null; // уровень придёт через колбэк ниже, если нужен
+      return;
+    }
+
+    startLegacyListening();
+  }
+
+  public void stopBackgroundListening() {
+    if (!isBackgroundListening)
+      return;
+    isBackgroundListening = false;
+
+    if (useVoxService) {
+      Intent stopIntent = new Intent(context, VoxService.class);
+      stopIntent.setAction("com.example.simplepad.action.STOP_VOX");
+      context.stopService(stopIntent);
+      voxService = null;
+      return;
+    }
+
+    stopLegacyListening();
+  }
+
+  private void startLegacyListening() {
     int sampleRate = 44100;
     int channelConfig = android.media.AudioFormat.CHANNEL_IN_MONO;
     int audioFormat = android.media.AudioFormat.ENCODING_PCM_16BIT;
@@ -164,7 +206,6 @@ public class AudioRecorder {
               if (Math.abs(buffer[i]) > max)
                 max = Math.abs(buffer[i]);
             }
-            // Сохраняем уровень в поле, чтобы getAmplitude() мог его вернуть
             backgroundAmplitude = max;
           }
         }
@@ -176,7 +217,7 @@ public class AudioRecorder {
     }
   }
 
-  public void stopBackgroundListening() {
+  private void stopLegacyListening() {
     isBackgroundListening = false;
     if (backgroundThread != null) {
       try {
@@ -198,8 +239,6 @@ public class AudioRecorder {
     }
   }
 
-  private int backgroundAmplitude = 0;
-
   public int getAmplitude() {
     if (recorder != null && isRecording) {
       try {
@@ -208,7 +247,18 @@ public class AudioRecorder {
         return 0;
       }
     }
+    // На Android 8+ уровень приходит из VoxService, иначе из локального потока
+    if (useVoxService) {
+      VoxService svc = VoxService.getInstance();
+      return svc != null ? svc.getAmplitude() : 0;
+    }
     // Если запись не идёт, возвращаем уровень из фонового слушателя
     return backgroundAmplitude;
+  }
+
+  // Уровень из VoxService (если сервис активен) — заглушка для совместимости.
+  // На Android 8+ уровень приходит через сервис; здесь оставим локальную переменную.
+  public void setBackgroundAmplitude(int amplitude) {
+    backgroundAmplitude = amplitude;
   }
 }

@@ -2,6 +2,7 @@ package com.example.simplepad;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
@@ -49,7 +50,7 @@ public class MainActivity extends Activity {
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     audioPlayer = new AudioPlayer();
-    audioRecorder = new AudioRecorder();
+    audioRecorder = new AudioRecorder(this);
     storage = new PadStorage(this);
 
     LinearLayout root = new LinearLayout(this);
@@ -90,26 +91,42 @@ public class MainActivity extends Activity {
     bpSmall.setMargins(8, 0, 8, 0);
     btnSettings.setLayoutParams(bpSmall);
 
-    btnPause.setOnClickListener(v -> {
-      audioPlayer.togglePause();
-      refreshPadColors();
+    btnPause.setOnClickListener(new View.OnClickListener() {
+      @Override
+      public void onClick(View v) {
+        audioPlayer.togglePause();
+        refreshPadColors();
+      }
     });
-    btnStop.setOnClickListener(v -> {
-      audioPlayer.stopAll();
-      refreshPadColors();
+    btnStop.setOnClickListener(new View.OnClickListener() {
+      @Override
+      public void onClick(View v) {
+        audioPlayer.stopAll();
+        refreshPadColors();
+      }
     });
 
     // Настройки
     // Настройки
-    settingsManager = new SettingsManager(this, storage, newIndex -> {
-      gridIndex = newIndex;
-      applyGrid();
-    }, () -> {
-      updateKeepScreenFlag();
-      startVoxIndicatorIfEnabled();
-    });
-    btnSettings.setOnClickListener(v -> {
-      settingsManager.showMainMenu(GRID_NAMES[gridIndex], storage.isAutoRecordEnabled());
+    settingsManager = new SettingsManager(this, storage,
+        new SettingsManager.GridLayoutUpdater() {
+          @Override
+          public void updateGridSize(int newGridIndex) {
+            gridIndex = newGridIndex;
+            applyGrid();
+          }
+        }, new SettingsManager.SettingsChangeListener() {
+          @Override
+          public void onSettingsChanged() {
+            updateKeepScreenFlag();
+            startVoxIndicatorIfEnabled();
+          }
+        });
+    btnSettings.setOnClickListener(new View.OnClickListener() {
+      @Override
+      public void onClick(View v) {
+        settingsManager.showMainMenu(GRID_NAMES[gridIndex], storage.isAutoRecordEnabled());
+      }
     });
 
     bottomBar.addView(btnPause);
@@ -127,7 +144,12 @@ public class MainActivity extends Activity {
 
     // Менеджер записи
     recordManager = new RecordManager(this, audioRecorder, topBar,
-        isRecording -> updateKeepScreenFlag());
+        new RecordManager.OnRecordingStateChanged() {
+          @Override
+          public void onStateChanged(boolean isRecording) {
+            updateKeepScreenFlag();
+          }
+        });
 
     updateKeepScreenFlag();
 
@@ -163,10 +185,18 @@ public class MainActivity extends Activity {
     for (int i = 0; i < visible; i++) {
       final int index = i;
       PadGridManager.PadView pv = PadGridManager.createPadView(this, grid, i, cols, pads[i].label);
-      pv.container.setOnClickListener(v -> onPadTapped(index));
-      pv.container.setOnLongClickListener(v -> {
-        showPadMenu(index);
-        return true;
+      pv.container.setOnClickListener(new View.OnClickListener() {
+        @Override
+        public void onClick(View v) {
+          onPadTapped(index);
+        }
+      });
+      pv.container.setOnLongClickListener(new View.OnLongClickListener() {
+        @Override
+        public boolean onLongClick(View v) {
+          showPadMenu(index);
+          return true;
+        }
       });
       padViews[i] = pv;
       updateDurationText(i);
@@ -177,7 +207,7 @@ public class MainActivity extends Activity {
   }
 
   private void onPadTapped(int index) {
-    boolean hasSound = pads[index].filePath != null;
+    boolean hasSound = pads[index].filePath != null && new File(pads[index].filePath).exists();
 
     // Если автозапись включена
     if (storage.isAutoRecordEnabled()) {
@@ -265,20 +295,23 @@ public class MainActivity extends Activity {
     final String[] items = { "✏️ Переименовать", "🎤 Записать сэмпл", "📂 Импорт аудио",
         "🗑 Удалить сэмпл", "❌ Отмена" };
     new AlertDialog.Builder(this).setTitle("Пэд: " + pads[index].label)
-        .setItems(items, (dialog, which) -> {
-          switch (which) {
-            case 0:
-              renamePad(index);
-              break;
-            case 1:
-              recordSample(index);
-              break;
-            case 2:
-              importAudio(index);
-              break;
-            case 3:
-              deleteSample(index);
-              break;
+        .setItems(items, new DialogInterface.OnClickListener() {
+          @Override
+          public void onClick(DialogInterface dialog, int which) {
+            switch (which) {
+              case 0:
+                renamePad(index);
+                break;
+              case 1:
+                recordSample(index);
+                break;
+              case 2:
+                importAudio(index);
+                break;
+              case 3:
+                deleteSample(index);
+                break;
+            }
           }
         }).show();
   }
@@ -454,5 +487,13 @@ public class MainActivity extends Activity {
     audioPlayer.stopAll();
     if (audioRecorder != null)
       audioRecorder.stop();
+  }
+
+  @Override
+  public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+    super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+    if (recordManager != null) {
+      recordManager.onRequestPermissionResult(requestCode, permissions, grantResults);
+    }
   }
 }

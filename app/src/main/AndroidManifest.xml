@@ -3,6 +3,8 @@
     package="com.example.simplepad">
 
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 
     <application
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -19,6 +21,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".VoxService"
+            android:foregroundServiceType="microphone"
+            android:exported="false" />
 
     </application>
 
