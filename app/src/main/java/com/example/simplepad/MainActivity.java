@@ -66,7 +66,7 @@ public class MainActivity extends Activity {
     grid.setLayoutParams(gridParams);
     grid.setPadding(8, 8, 8, 8);
 
-    // Нижняя панель
+    // Нижняя панель.
     LinearLayout bottomBar = new LinearLayout(this);
     bottomBar.setOrientation(LinearLayout.HORIZONTAL);
     bottomBar.setGravity(Gravity.CENTER);
