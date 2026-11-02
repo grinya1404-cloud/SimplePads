@@ -9,7 +9,7 @@ public class SettingsManager {
   private final Activity activity;
   private final PadStorage storage;
   private final GridLayoutUpdater gridUpdater;
-  private final SettingsChangeListener settingsChangeListener; // <-- Объявлено как поле
+  private final SettingsChangeListener settingsChangeListener;
 
   public interface GridLayoutUpdater {
     void updateGridSize(int newGridIndex);
@@ -30,9 +30,6 @@ public class SettingsManager {
   public void showMainMenu(String currentGridName, boolean isAutoRecordEnabled) {
     String[] screenModes = { "Системно", "При записи", "Всегда" };
     int currentMode = storage.getKeepScreenMode();
-
-    String voxIndicatorStatus = storage.isVoxIndicatorEnabled() ? "ВКЛ" : "ВЫКЛ";
-    String voxAutoStatus = storage.isVoxAutoEnabled() ? "ВКЛ" : "ВЫКЛ";
 
     final String[] items = { "Размер сетки: " + currentGridName,
         "Автозапись при тапе: " + (isAutoRecordEnabled ? "ВКЛ" : "ВЫКЛ"),
@@ -61,45 +58,7 @@ public class SettingsManager {
     }).show();
   }
 
-  private void showVoxThresholdDialog() {
-    final int[] thresholds = { 1000, 3000, 6000 };
-    final String[] names = { "Низкий (1000)", "Средний (3000)", "Высокий (6000)" };
-    int current = 1;
-    for (int i = 0; i < thresholds.length; i++) {
-      if (thresholds[i] == storage.getVoxThreshold()) {
-        current = i;
-        break;
-      }
-    }
-    new AlertDialog.Builder(activity).setTitle("Порог срабатывания")
-        .setSingleChoiceItems(names, current, (dialog, which) -> {
-          storage.setVoxThreshold(thresholds[which]);
-          if (settingsChangeListener != null)
-            settingsChangeListener.onSettingsChanged();
-          dialog.dismiss();
-        }).setNegativeButton("Отмена", null).show();
-  }
-
-  private void showVoxTimeoutDialog() {
-    final int[] timeouts = { 5, 10, 15, 30, 60 };
-    final String[] names = { "5 секунд", "10 секунд", "15 секунд", "30 секунд", "1 минута" };
-    int current = 2;
-    for (int i = 0; i < timeouts.length; i++) {
-      if (timeouts[i] == storage.getVoxSilenceTimeout()) {
-        current = i;
-        break;
-      }
-    }
-    new AlertDialog.Builder(activity).setTitle("Таймаут тишины")
-        .setMessage("После этого времени тишины запись остановится. Для диалогов с паузами "
-            + "рекомендуется 15–30 секунд.")
-        .setSingleChoiceItems(names, current, (dialog, which) -> {
-          storage.setVoxSilenceTimeout(timeouts[which]);
-          if (settingsChangeListener != null)
-            settingsChangeListener.onSettingsChanged();
-          dialog.dismiss();
-        }).setNegativeButton("Отмена", null).show();
-  }
+  // ================= ДИАЛОГИ НАСТРОЕК =================
 
   private void showGridSizeDialog() {
     String[] gridNames = { "3×3", "4×4", "4×5", "5×5" };
@@ -151,16 +110,19 @@ public class SettingsManager {
               Toast.LENGTH_SHORT).show();
           if (settingsChangeListener != null)
             settingsChangeListener.onSettingsChanged();
+          dialog.dismiss();
+          showVoxSubmenu(); // Возвращаемся в меню Vox
           break;
         case 1:
           boolean newVoxAuto = !storage.isVoxAutoEnabled();
           storage.setVoxAutoEnabled(newVoxAuto);
-          // Автозапуск Vox требует мониторинга микрофона — включаем индикатор
-          storage.setVoxIndicatorEnabled(newVoxAuto);
+          // storage.setVoxIndicatorEnabled(newVoxAuto); // <--- УДАЛИТЬ ЭТУ СТРОКУ
           Toast.makeText(activity, "Vox автостарт: " + (newVoxAuto ? "ВКЛ" : "ВЫКЛ"),
               Toast.LENGTH_SHORT).show();
           if (settingsChangeListener != null)
             settingsChangeListener.onSettingsChanged();
+          dialog.dismiss();
+          showVoxSubmenu();
           break;
         case 2:
           showVoxThresholdDialog();
@@ -175,6 +137,46 @@ public class SettingsManager {
     }).show();
   }
 
+  private void showVoxThresholdDialog() {
+    final int[] thresholds = { 1000, 3000, 6000 };
+    final String[] names = { "Низкий (1000)", "Средний (3000)", "Высокий (6000)" };
+    int current = 1;
+    for (int i = 0; i < thresholds.length; i++) {
+      if (thresholds[i] == storage.getVoxThreshold()) {
+        current = i;
+        break;
+      }
+    }
+    new AlertDialog.Builder(activity).setTitle("Порог срабатывания")
+        .setSingleChoiceItems(names, current, (dialog, which) -> {
+          storage.setVoxThreshold(thresholds[which]);
+          if (settingsChangeListener != null)
+            settingsChangeListener.onSettingsChanged();
+          dialog.dismiss();
+          showVoxSubmenu(); // Возврат в меню
+        }).setNegativeButton("Отмена", null).show();
+  }
+
+  private void showVoxTimeoutDialog() {
+    final int[] timeouts = { 5, 10, 15, 30, 60 };
+    final String[] names = { "5 секунд", "10 секунд", "15 секунд", "30 секунд", "1 минута" };
+    int current = 2;
+    for (int i = 0; i < timeouts.length; i++) {
+      if (timeouts[i] == storage.getVoxSilenceTimeout()) {
+        current = i;
+        break;
+      }
+    }
+    new AlertDialog.Builder(activity).setTitle("Таймаут тишины")
+        .setSingleChoiceItems(names, current, (dialog, which) -> {
+          storage.setVoxSilenceTimeout(timeouts[which]);
+          if (settingsChangeListener != null)
+            settingsChangeListener.onSettingsChanged();
+          dialog.dismiss();
+          showVoxSubmenu(); // Возврат в меню
+        }).setNegativeButton("Отмена", null).show();
+  }
+
   private void showVoxTriggerFramesDialog() {
     final int[] frames = { 2, 3, 4, 5, 6 };
     final String[] names = { "2 кадра", "3 кадра", "4 кадра", "5 кадров", "6 кадров" };
@@ -186,13 +188,12 @@ public class SettingsManager {
       }
     }
     new AlertDialog.Builder(activity).setTitle("Кадров выше порога")
-        .setMessage("Запись начнётся только после этого количества подряд идущих измерений, "
-            + "чтобы не срабатывать на единичные помехи.")
         .setSingleChoiceItems(names, current, (dialog, which) -> {
           storage.setVoxTriggerFrames(frames[which]);
           if (settingsChangeListener != null)
             settingsChangeListener.onSettingsChanged();
           dialog.dismiss();
+          showVoxSubmenu(); // Возврат в меню
         }).setNegativeButton("Отмена", null).show();
   }
 }

@@ -1,25 +1,18 @@
 package com.example.simplepad;
+
 // a7
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Color;
-import android.net.Uri;
 import android.os.Bundle;
-import android.view.Gravity;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.GridLayout;
-import android.widget.LinearLayout;
-import android.widget.TextView;
-import android.widget.Toast;
-
-import java.io.File;
-
 import android.os.Handler;
 import android.os.Looper;
+import android.view.Gravity;
 import android.view.View;
+import android.widget.*;
+import java.io.File;
 
 public class MainActivity extends Activity {
 
@@ -110,21 +103,20 @@ public class MainActivity extends Activity {
     });
 
     // Настройки
-    // Настройки
-    settingsManager = new SettingsManager(this, storage,
-        new SettingsManager.GridLayoutUpdater() {
-          @Override
-          public void updateGridSize(int newGridIndex) {
-            gridIndex = newGridIndex;
-            applyGrid();
-          }
-        }, new SettingsManager.SettingsChangeListener() {
-          @Override
-          public void onSettingsChanged() {
-            updateKeepScreenFlag();
-            startVoxIndicatorIfEnabled();
-          }
-        });
+    settingsManager = new SettingsManager(this, storage, new SettingsManager.GridLayoutUpdater() {
+      @Override
+      public void updateGridSize(int newGridIndex) {
+        gridIndex = newGridIndex;
+        applyGrid();
+      }
+    }, new SettingsManager.SettingsChangeListener() {
+      @Override
+      public void onSettingsChanged() {
+        updateKeepScreenFlag();
+        startVoxIndicatorIfEnabled();
+        updateVoxLabels();
+      }
+    });
     btnSettings.setOnClickListener(new View.OnClickListener() {
       @Override
       public void onClick(View v) {
@@ -380,53 +372,42 @@ public class MainActivity extends Activity {
     }
   }
 
-  private void startVoxIndicatorIfEnabled() {
-    if (storage.isVoxIndicatorEnabled() || storage.isVoxAutoEnabled()) {
-      startVoxListening();
-    } else {
-      stopVoxListening();
-      topBar.voxLevelBar.setProgress(0);
-    }
-  }
-
   private void startVoxListening() {
     stopVoxListening();
     audioRecorder.startBackgroundListening();
     voxSilenceStart = 0;
+    voxTriggerFrames = 0;
 
     voxRunnable = new Runnable() {
       @Override
       public void run() {
         int amp = audioRecorder.getAmplitude();
+
+        // Всегда обновляем полоску (voxRunnable запускается только когда нужно)
         topBar.voxLevelBar.setProgress(amp);
 
         boolean isVoxAuto = storage.isVoxAutoEnabled();
         int threshold = storage.getVoxThreshold();
         int timeoutSec = storage.getVoxSilenceTimeout();
+        int triggerFrames = storage.getVoxTriggerFrames();
 
-        // Получаем реальное состояние записи из RecordManager
         boolean isActuallyRecording = recordManager != null && recordManager.isRecordingMode();
-        // Проверяем, не на паузе ли запись
         boolean isPaused = audioRecorder.isPaused();
 
-        if (isVoxAuto && !isPaused) { // Если на паузе, Vox не вмешивается!
-          int triggerFrames = storage.getVoxTriggerFrames();
-          if (!isActuallyRecording && amp > threshold) {
-            // Требуем нескольких подряд идущих измерений выше порога,
-            // чтобы не стартовать от единичного пика/помехи
-            voxTriggerFrames++;
-            if (voxTriggerFrames >= triggerFrames) {
-              voxTriggerFrames = 0;
-              if (!recordManager.isRecordingMode()) {
+        if (isVoxAuto && !isPaused) {
+          if (!isActuallyRecording) {
+            if (amp > threshold) {
+              voxTriggerFrames++;
+              if (voxTriggerFrames >= triggerFrames) {
+                voxTriggerFrames = 0;
                 topBar.btnRecStart.performClick();
                 voxSilenceStart = 0;
               }
+            } else {
+              voxTriggerFrames = 0;
             }
           } else {
             voxTriggerFrames = 0;
-          }
-          if (isActuallyRecording) {
-            // СТОП: Если пишем и наступила тишина
             if (amp < threshold) {
               if (voxSilenceStart == 0) {
                 voxSilenceStart = System.currentTimeMillis();
@@ -444,7 +425,7 @@ public class MainActivity extends Activity {
       }
     };
     voxHandler.post(voxRunnable);
-  }
+  } 
 
   private void stopVoxListening() {
     if (voxRunnable != null) {
@@ -503,10 +484,33 @@ public class MainActivity extends Activity {
   }
 
   @Override
-  public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+  public void onRequestPermissionsResult(int requestCode, String[] permissions,
+      int[] grantResults) {
     super.onRequestPermissionsResult(requestCode, permissions, grantResults);
     if (recordManager != null) {
       recordManager.onRequestPermissionResult(requestCode, permissions, grantResults);
+    }
+  }
+
+  private void updateVoxLabels() {
+    // Оптимизация: обновляем цвета только если состояние изменилось
+    boolean isVoxAuto = storage.isVoxAutoEnabled();
+    boolean isPadAuto = storage.isAutoRecordEnabled();
+
+    topBar.setAutoLabelActive(isVoxAuto);
+    topBar.setPadLabelActive(isPadAuto);
+  }
+
+  private void startVoxIndicatorIfEnabled() {
+    // Активность индикатора зависит от настроек: индикатор, автостарт или идёт запись
+    boolean shouldListen = storage.isVoxIndicatorEnabled() || storage.isVoxAutoEnabled()
+        || (recordManager != null && recordManager.isRecordingMode());
+
+    if (shouldListen) {
+      startVoxListening(); // Запускаем обновление полоски
+    } else {
+      stopVoxListening(); // Останавливаем обновление
+      topBar.voxLevelBar.setProgress(0); // Но не скрываем, а ставим на 0
     }
   }
 }
