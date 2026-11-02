@@ -33,14 +33,10 @@ public class SettingsManager {
 
     String voxIndicatorStatus = storage.isVoxIndicatorEnabled() ? "ВКЛ" : "ВЫКЛ";
     String voxAutoStatus = storage.isVoxAutoEnabled() ? "ВКЛ" : "ВЫКЛ";
-    String thresholdVal = String.valueOf(storage.getVoxThreshold());
-    String timeoutVal = storage.getVoxSilenceTimeout() + " сек";
 
     final String[] items = { "Размер сетки: " + currentGridName,
         "Автозапись при тапе: " + (isAutoRecordEnabled ? "ВКЛ" : "ВЫКЛ"),
-        "Не гасить экран: " + screenModes[currentMode], "Vox-индикатор: " + voxIndicatorStatus,
-        "Vox (Автостарт/стоп): " + voxAutoStatus, "Порог Vox: " + thresholdVal,
-        "Таймаут тишины: " + timeoutVal };
+        "Не гасить экран: " + screenModes[currentMode], "Vox-настройки" };
 
     new AlertDialog.Builder(activity).setTitle("Настройки").setItems(items, (dialog, which) -> {
       switch (which) {
@@ -59,26 +55,7 @@ public class SettingsManager {
           showKeepScreenDialog();
           break;
         case 3:
-          boolean newVoxInd = !storage.isVoxIndicatorEnabled();
-          storage.setVoxIndicatorEnabled(newVoxInd);
-          Toast.makeText(activity, "Vox-индикатор: " + (newVoxInd ? "ВКЛ" : "ВЫКЛ"),
-              Toast.LENGTH_SHORT).show();
-          if (settingsChangeListener != null)
-            settingsChangeListener.onSettingsChanged();
-          break;
-        case 4:
-          boolean newVoxAuto = !storage.isVoxAutoEnabled();
-          storage.setVoxAutoEnabled(newVoxAuto);
-          Toast.makeText(activity, "Vox автостарт: " + (newVoxAuto ? "ВКЛ" : "ВЫКЛ"),
-              Toast.LENGTH_SHORT).show();
-          if (settingsChangeListener != null)
-            settingsChangeListener.onSettingsChanged();
-          break;
-        case 5:
-          showVoxThresholdDialog();
-          break;
-        case 6:
-          showVoxTimeoutDialog();
+          showVoxSubmenu();
           break;
       }
     }).show();
@@ -104,9 +81,9 @@ public class SettingsManager {
   }
 
   private void showVoxTimeoutDialog() {
-    final int[] timeouts = { 2, 3, 5 };
-    final String[] names = { "2 секунды", "3 секунды", "5 секунд" };
-    int current = 1;
+    final int[] timeouts = { 5, 10, 15, 30, 60 };
+    final String[] names = { "5 секунд", "10 секунд", "15 секунд", "30 секунд", "1 минута" };
+    int current = 2;
     for (int i = 0; i < timeouts.length; i++) {
       if (timeouts[i] == storage.getVoxSilenceTimeout()) {
         current = i;
@@ -114,6 +91,8 @@ public class SettingsManager {
       }
     }
     new AlertDialog.Builder(activity).setTitle("Таймаут тишины")
+        .setMessage("После этого времени тишины запись остановится. Для диалогов с паузами "
+            + "рекомендуется 15–30 секунд.")
         .setSingleChoiceItems(names, current, (dialog, which) -> {
           storage.setVoxSilenceTimeout(timeouts[which]);
           if (settingsChangeListener != null)
@@ -144,6 +123,73 @@ public class SettingsManager {
     new AlertDialog.Builder(activity).setTitle("Не гасить экран")
         .setSingleChoiceItems(modes, storage.getKeepScreenMode(), (dialog, which) -> {
           storage.setKeepScreenMode(which);
+          if (settingsChangeListener != null)
+            settingsChangeListener.onSettingsChanged();
+          dialog.dismiss();
+        }).setNegativeButton("Отмена", null).show();
+  }
+
+  // ================= ПОДМЕНЮ VOX =================
+
+  private void showVoxSubmenu() {
+    String voxIndicatorStatus = storage.isVoxIndicatorEnabled() ? "ВКЛ" : "ВЫКЛ";
+    String voxAutoStatus = storage.isVoxAutoEnabled() ? "ВКЛ" : "ВЫКЛ";
+    String thresholdVal = String.valueOf(storage.getVoxThreshold());
+    String timeoutVal = storage.getVoxSilenceTimeout() + " сек";
+    String framesVal = String.valueOf(storage.getVoxTriggerFrames());
+
+    final String[] items = { "Vox-индикатор: " + voxIndicatorStatus,
+        "Vox (Автостарт/стоп): " + voxAutoStatus, "Порог Vox: " + thresholdVal,
+        "Таймаут тишины: " + timeoutVal, "Кадров для срабатывания: " + framesVal };
+
+    new AlertDialog.Builder(activity).setTitle("Vox-настройки").setItems(items, (dialog, which) -> {
+      switch (which) {
+        case 0:
+          boolean newVoxInd = !storage.isVoxIndicatorEnabled();
+          storage.setVoxIndicatorEnabled(newVoxInd);
+          Toast.makeText(activity, "Vox-индикатор: " + (newVoxInd ? "ВКЛ" : "ВЫКЛ"),
+              Toast.LENGTH_SHORT).show();
+          if (settingsChangeListener != null)
+            settingsChangeListener.onSettingsChanged();
+          break;
+        case 1:
+          boolean newVoxAuto = !storage.isVoxAutoEnabled();
+          storage.setVoxAutoEnabled(newVoxAuto);
+          // Автозапуск Vox требует мониторинга микрофона — включаем индикатор
+          storage.setVoxIndicatorEnabled(newVoxAuto);
+          Toast.makeText(activity, "Vox автостарт: " + (newVoxAuto ? "ВКЛ" : "ВЫКЛ"),
+              Toast.LENGTH_SHORT).show();
+          if (settingsChangeListener != null)
+            settingsChangeListener.onSettingsChanged();
+          break;
+        case 2:
+          showVoxThresholdDialog();
+          break;
+        case 3:
+          showVoxTimeoutDialog();
+          break;
+        case 4:
+          showVoxTriggerFramesDialog();
+          break;
+      }
+    }).show();
+  }
+
+  private void showVoxTriggerFramesDialog() {
+    final int[] frames = { 2, 3, 4, 5, 6 };
+    final String[] names = { "2 кадра", "3 кадра", "4 кадра", "5 кадров", "6 кадров" };
+    int current = 2;
+    for (int i = 0; i < frames.length; i++) {
+      if (frames[i] == storage.getVoxTriggerFrames()) {
+        current = i;
+        break;
+      }
+    }
+    new AlertDialog.Builder(activity).setTitle("Кадров выше порога")
+        .setMessage("Запись начнётся только после этого количества подряд идущих измерений, "
+            + "чтобы не срабатывать на единичные помехи.")
+        .setSingleChoiceItems(names, current, (dialog, which) -> {
+          storage.setVoxTriggerFrames(frames[which]);
           if (settingsChangeListener != null)
             settingsChangeListener.onSettingsChanged();
           dialog.dismiss();

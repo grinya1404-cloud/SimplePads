@@ -82,10 +82,19 @@ public class PadStorage {
   }
 
   public int getVoxSilenceTimeout() {
-    return prefs.getInt("vox_timeout", 3); // Секунды
+    return prefs.getInt("vox_timeout", 15); // Секунды (по умолчанию 15 для диалогов с паузами)
   }
 
   public void setVoxSilenceTimeout(int seconds) {
     prefs.edit().putInt("vox_timeout", seconds).apply();
+  }
+
+  // --- Количество подряд идущих кадров выше порога для автозапуска Vox ---
+  public int getVoxTriggerFrames() {
+    return prefs.getInt("vox_trigger_frames", 4);
+  }
+
+  public void setVoxTriggerFrames(int frames) {
+    prefs.edit().putInt("vox_trigger_frames", frames).apply();
   }
 }

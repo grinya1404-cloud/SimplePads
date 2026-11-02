@@ -46,6 +46,9 @@ public class MainActivity extends Activity {
   private long voxSilenceStart = 0;
   private boolean voxIsRecording = false;
 
+  // Счётчик подряд идущих измерений выше порога для подтверждения начала сигнала
+  private int voxTriggerFrames = 0;
+
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
@@ -407,13 +410,22 @@ public class MainActivity extends Activity {
         boolean isPaused = audioRecorder.isPaused();
 
         if (isVoxAuto && !isPaused) { // Если на паузе, Vox не вмешивается!
+          int triggerFrames = storage.getVoxTriggerFrames();
           if (!isActuallyRecording && amp > threshold) {
-            // СТАРТ: Программно нажимаем REC
-            if (!recordManager.isRecordingMode()) {
-              topBar.btnRecStart.performClick();
-              voxSilenceStart = 0;
+            // Требуем нескольких подряд идущих измерений выше порога,
+            // чтобы не стартовать от единичного пика/помехи
+            voxTriggerFrames++;
+            if (voxTriggerFrames >= triggerFrames) {
+              voxTriggerFrames = 0;
+              if (!recordManager.isRecordingMode()) {
+                topBar.btnRecStart.performClick();
+                voxSilenceStart = 0;
+              }
             }
-          } else if (isActuallyRecording) {
+          } else {
+            voxTriggerFrames = 0;
+          }
+          if (isActuallyRecording) {
             // СТОП: Если пишем и наступила тишина
             if (amp < threshold) {
               if (voxSilenceStart == 0) {
@@ -439,6 +451,7 @@ public class MainActivity extends Activity {
       voxHandler.removeCallbacks(voxRunnable);
       voxRunnable = null;
     }
+    voxTriggerFrames = 0;
     audioRecorder.stopBackgroundListening();
   }
 
