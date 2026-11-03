@@ -143,6 +143,7 @@ public class MainActivity extends Activity {
           @Override
           public void onStateChanged(boolean isRecording) {
             updateKeepScreenFlag();
+            startVoxIndicatorIfEnabled(); // <--- ДОБАВИТЬ ЭТУ СТРОКУ
           }
         });
 
@@ -425,7 +426,7 @@ public class MainActivity extends Activity {
       }
     };
     voxHandler.post(voxRunnable);
-  } 
+  }
 
   private void stopVoxListening() {
     if (voxRunnable != null) {
