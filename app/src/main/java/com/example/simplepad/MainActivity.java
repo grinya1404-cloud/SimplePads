@@ -42,6 +42,8 @@ public class MainActivity extends Activity {
   // Счётчик подряд идущих измерений выше порога для подтверждения начала сигнала
   private int voxTriggerFrames = 0;
 
+  private HeadsetMonitor headsetMonitor;
+
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
@@ -147,10 +149,36 @@ public class MainActivity extends Activity {
           }
         });
 
+    // Инициализация монитора гарнитуры
+    headsetMonitor = new HeadsetMonitor(this, new HeadsetMonitor.OnHeadsetStateChangedListener() {
+      @Override
+      public void onStateChanged(boolean isHeadsetWithMicConnected) {
+        int color = isHeadsetWithMicConnected ? Color.GREEN : Color.GRAY;
+        topBar.tvHeadsetIcon.setTextColor(color);
+      }
+    });
+
     updateKeepScreenFlag();
 
     // Запускаем Vox-индикатор, если он включён в настройках
     startVoxIndicatorIfEnabled();
+
+  }
+
+  @Override
+  protected void onResume() {
+    super.onResume();
+    if (headsetMonitor != null) {
+      headsetMonitor.start();
+    }
+  }
+
+  @Override
+  protected void onPause() {
+    super.onPause();
+    if (headsetMonitor != null) {
+      headsetMonitor.stop();
+    }
   }
 
   private void updateKeepScreenFlag() {
@@ -478,6 +506,8 @@ public class MainActivity extends Activity {
   @Override
   protected void onDestroy() {
     super.onDestroy();
+    if (headsetMonitor != null)
+      headsetMonitor.stop();
     stopVoxListening();
     audioPlayer.stopAll();
     if (audioRecorder != null)

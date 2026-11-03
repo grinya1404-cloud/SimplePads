@@ -8,7 +8,6 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
-import android.view.View;
 import android.widget.Toast;
 
 public class RecordManager {
@@ -61,11 +60,11 @@ public class RecordManager {
       if (recorder.isPaused()) {
         recorder.resume();
         topBar.btnRecPause.setText("⏸");
-        topBar.tvRecordIndicator.setVisibility(View.VISIBLE);
+        topBar.setRecButtonText(true); // Возвращаем точку
       } else {
         recorder.pause();
         topBar.btnRecPause.setText("▶️");
-        topBar.tvRecordIndicator.setVisibility(View.INVISIBLE);
+        topBar.setRecButtonText(false); // Убираем точку на паузе
       }
     });
 
@@ -80,11 +79,13 @@ public class RecordManager {
 
   private void setRecordingState(boolean isRecording) {
     isRecordingMode = isRecording;
-    topBar.tvRecordIndicator.setVisibility(isRecording ? View.VISIBLE : View.INVISIBLE);
     topBar.btnRecStart.setEnabled(!isRecording);
     topBar.btnRecPause.setEnabled(isRecording);
     topBar.btnRecStop.setEnabled(isRecording);
     topBar.btnRecPause.setText("⏸");
+    
+    // Обновляем текст кнопки REC (с точкой или без)
+    topBar.setRecButtonText(isRecording);
 
     if (!isRecording) {
       topBar.tvRecordTimer.setText("--:--");
@@ -139,8 +140,6 @@ public class RecordManager {
   public void onRequestPermissionResult(int requestCode, String[] permissions, int[] grantResults) {
     if (requestCode != 100)
       return;
-    if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-      // Разрешение получено
-    }
+    // Разрешение получено
   }
 }
