@@ -12,134 +12,133 @@ import android.widget.Toast;
 
 public class RecordManager {
 
-  private final Activity activity;
-  private final AudioRecorder recorder;
-  private final TopBarView topBar;
-  private final OnRecordingStateChanged listener;
+    private final Activity activity;
+    private final AudioRecorder recorder;
+    private final TopBarView topBar;
+    private final OnRecordingStateChanged listener;
 
-  private boolean isRecordingMode = false;
+    private boolean isRecordingMode = false;
 
-  public interface OnRecordingStateChanged {
-    void onStateChanged(boolean isRecording);
-  }
-
-  public RecordManager(Activity activity, AudioRecorder recorder, TopBarView topBar,
-      OnRecordingStateChanged listener) {
-    this.activity = activity;
-    this.recorder = recorder;
-    this.topBar = topBar;
-    this.listener = listener;
-    setupButtons();
-  }
-
-  public boolean isRecordingMode() {
-    return isRecordingMode;
-  }
-
-  private void setupButtons() {
-    topBar.btnRecStart.setOnClickListener(v -> {
-      if (isRecordingMode)
-        return;
-      if (!hasPermission()) {
-        requestPermission();
-        return;
-      }
-
-      String path = MediaFileManager.createRecordFilePath(activity);
-      if (path == null)
-        return;
-
-      if (recorder.start(activity, path, topBar.tvRecordTimer)) {
-        setRecordingState(true);
-      }
-    });
-
-    topBar.btnRecPause.setOnClickListener(v -> {
-      if (!isRecordingMode)
-        return;
-      if (recorder.isPaused()) {
-        recorder.resume();
-        topBar.btnRecPause.setText("⏸");
-        topBar.setRecButtonText(true); // Возвращаем точку
-      } else {
-        recorder.pause();
-        topBar.btnRecPause.setText("▶️");
-        topBar.setRecButtonText(false); // Убираем точку на паузе
-      }
-    });
-
-    topBar.btnRecStop.setOnClickListener(v -> {
-      if (!isRecordingMode)
-        return;
-      recorder.stop();
-      setRecordingState(false);
-      Toast.makeText(activity, "Запись сохранена", Toast.LENGTH_SHORT).show();
-    });
-  }
-
-  private void setRecordingState(boolean isRecording) {
-    isRecordingMode = isRecording;
-    topBar.btnRecStart.setEnabled(!isRecording);
-    topBar.btnRecPause.setEnabled(isRecording);
-    topBar.btnRecStop.setEnabled(isRecording);
-    topBar.btnRecPause.setText("⏸");
-    
-    // Обновляем текст кнопки REC (с точкой или без)
-    topBar.setRecButtonText(isRecording);
-
-    if (!isRecording) {
-      topBar.tvRecordTimer.setText("--:--");
+    public interface OnRecordingStateChanged {
+        void onStateChanged(boolean isRecording);
     }
 
-    if (listener != null) {
-      listener.onStateChanged(isRecording);
+    public RecordManager(Activity activity, AudioRecorder recorder, TopBarView topBar,
+                         OnRecordingStateChanged listener) {
+        this.activity = activity;
+        this.recorder = recorder;
+        this.topBar = topBar;
+        this.listener = listener;
+        setupButtons();
     }
-  }
 
-  public void startAutoRecording() {
-    if (isRecordingMode)
-      return;
-    if (!hasPermission()) {
-      requestPermission();
-      return;
+    public boolean isRecordingMode() {
+        return isRecordingMode;
     }
-    String path = MediaFileManager.createRecordFilePath(activity);
-    if (path == null)
-      return;
 
-    if (recorder.start(activity, path, topBar.tvRecordTimer)) {
-      setRecordingState(true);
+    private void setupButtons() {
+        topBar.getBtnRecStart().setOnClickListener(v -> {
+            if (isRecordingMode) {
+                return;
+            }
+            if (!hasPermission()) {
+                requestPermission();
+                return;
+            }
+            startRecording();
+        });
+
+        topBar.getBtnRecPause().setOnClickListener(v -> {
+            if (!isRecordingMode) {
+                return;
+            }
+            if (recorder.isPaused()) {
+                recorder.resume();
+                topBar.getBtnRecPause().setText("⏸");
+                topBar.setRecordingDot(true);
+            } else {
+                recorder.pause();
+                topBar.getBtnRecPause().setText("▶️");
+                topBar.setRecordingDot(false);
+            }
+        });
+
+        topBar.getBtnRecStop().setOnClickListener(v -> {
+            if (!isRecordingMode) {
+                return;
+            }
+            recorder.stop();
+            setRecordingState(false);
+            Toast.makeText(activity, "Запись сохранена", Toast.LENGTH_SHORT).show();
+        });
     }
-  }
 
-  private boolean hasPermission() {
-    return Build.VERSION.SDK_INT < Build.VERSION_CODES.M || activity
-        .checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
-  }
-
-  private void requestPermission() {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-      if (!activity.shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO)) {
-        showPermissionSettingsDialog();
-      } else {
-        activity.requestPermissions(new String[] { Manifest.permission.RECORD_AUDIO }, 100);
-      }
+    private void startRecording() {
+        String path = MediaFileManager.createRecordFilePath(activity);
+        if (path == null) {
+            return;
+        }
+        if (recorder.start(activity, path, topBar.getRecordTimer())) {
+            setRecordingState(true);
+        }
     }
-  }
 
-  private void showPermissionSettingsDialog() {
-    new AlertDialog.Builder(activity).setTitle("Нужно разрешение")
-        .setMessage("Для записи нужен доступ к микрофону. Разрешите его в настройках.")
-        .setPositiveButton("Настройки", (d, w) -> {
-          Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-          intent.setData(Uri.parse("package:" + activity.getPackageName()));
-          activity.startActivity(intent);
-        }).setNegativeButton("Отмена", null).show();
-  }
+    public void startAutoRecording() {
+        if (isRecordingMode) {
+            return;
+        }
+        if (!hasPermission()) {
+            requestPermission();
+            return;
+        }
+        startRecording();
+    }
 
-  public void onRequestPermissionResult(int requestCode, String[] permissions, int[] grantResults) {
-    if (requestCode != 100)
-      return;
-    // Разрешение получено
-  }
+    private void setRecordingState(boolean isRecording) {
+        isRecordingMode = isRecording;
+        topBar.getBtnRecStart().setEnabled(!isRecording);
+        topBar.getBtnRecPause().setEnabled(isRecording);
+        topBar.getBtnRecStop().setEnabled(isRecording);
+        topBar.getBtnRecPause().setText("⏸");
+        topBar.setRecordingDot(isRecording);
+
+        if (!isRecording) {
+            topBar.getRecordTimer().setText("--:--");
+        }
+
+        if (listener != null) {
+            listener.onStateChanged(isRecording);
+        }
+    }
+
+    private boolean hasPermission() {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.M || activity
+                .checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void requestPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!activity.shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO)) {
+                showPermissionSettingsDialog();
+            } else {
+                activity.requestPermissions(new String[] { Manifest.permission.RECORD_AUDIO }, 100);
+            }
+        }
+    }
+
+    private void showPermissionSettingsDialog() {
+        new AlertDialog.Builder(activity).setTitle("Нужно разрешение")
+                .setMessage("Для записи нужен доступ к микрофону. Разрешите его в настройках.")
+                .setPositiveButton("Настройки", (d, w) -> {
+                    Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                    intent.setData(Uri.parse("package:" + activity.getPackageName()));
+                    activity.startActivity(intent);
+                }).setNegativeButton("Отмена", null).show();
+    }
+
+    public void onRequestPermissionResult(int requestCode, String[] permissions, int[] grantResults) {
+        if (requestCode != 100) {
+            return;
+        }
+    }
 }
