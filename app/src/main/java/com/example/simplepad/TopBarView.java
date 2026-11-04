@@ -21,6 +21,7 @@ public class TopBarView extends LinearLayout {
 
   private TextView tvVoxAutoLabel;
   private TextView tvVoxPadLabel;
+  public TextView tvSystemVolume;
 
   public TopBarView(Context context) {
     super(context);
@@ -29,15 +30,44 @@ public class TopBarView extends LinearLayout {
     setPadding(16, 16, 16, 8);
     setBackgroundColor(Color.parseColor("#2C2C2C"));
 
-    // --- Надпись HS (слева) ---
+    // --- Контейнер для HS и системной громкости ---
+    LinearLayout hsContainer = new LinearLayout(context);
+    hsContainer.setOrientation(LinearLayout.VERTICAL);
+    hsContainer.setGravity(Gravity.CENTER);
+    LayoutParams hsContainerParams = new LayoutParams(LayoutParams.WRAP_CONTENT,
+        LayoutParams.WRAP_CONTENT);
+    hsContainerParams.setMargins(0, 0, 8, 0);
+
+    // Надпись HS
     tvHeadsetIcon = new TextView(context);
     tvHeadsetIcon.setText("HS");
     tvHeadsetIcon.setTextSize(10);
     tvHeadsetIcon.setTextColor(Color.GRAY);
     tvHeadsetIcon.setGravity(Gravity.CENTER);
-    LayoutParams hsParams = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT);
-    hsParams.setMargins(0, 0, 8, 0);
-    addView(tvHeadsetIcon, hsParams);
+    hsContainer.addView(tvHeadsetIcon);
+
+    // Текст системной громкости (под HS)
+    // Текст системной громкости (под HS)
+    tvSystemVolume = new TextView(context);
+    tvSystemVolume.setText("100%");
+    tvSystemVolume.setTextSize(10);
+    tvSystemVolume.setTextColor(Color.GRAY);
+    tvSystemVolume.setGravity(Gravity.CENTER); // Центрируем текст
+    tvSystemVolume.setTypeface(android.graphics.Typeface.MONOSPACE); // Моноширинный шрифт
+
+    // ЗАКРЕПЛЯЕМ ШИРИНУ. Например, 40dp хватит для "100%" без пробелов.
+    // Это не даст блоку "прыгать" при смене текста.
+    LinearLayout.LayoutParams volParams = new LinearLayout.LayoutParams(
+        (int) android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_DIP, 30,
+            getResources().getDisplayMetrics()),
+        LinearLayout.LayoutParams.WRAP_CONTENT);
+    volParams.gravity = Gravity.CENTER_HORIZONTAL;
+    tvSystemVolume.setLayoutParams(volParams);
+
+    hsContainer.addView(tvSystemVolume);
+
+    // Добавляем контейнер в панель (вместо старого addView(tvHeadsetIcon))
+    addView(hsContainer, hsContainerParams);
 
     // --- Таймер ---
     tvRecordTimer = new TextView(context);
@@ -83,7 +113,7 @@ public class TopBarView extends LinearLayout {
     // --- Кнопки записи ---
     // Высота кнопок (например, 56dp)
     int buttonHeight = (int) android.util.TypedValue.applyDimension(
-            android.util.TypedValue.COMPLEX_UNIT_DIP, 56, getResources().getDisplayMetrics());
+        android.util.TypedValue.COMPLEX_UNIT_DIP, 56, getResources().getDisplayMetrics());
 
     // Контейнер для кнопки REC и кружка поверх неё
     FrameLayout recContainer = new FrameLayout(context);
@@ -97,7 +127,7 @@ public class TopBarView extends LinearLayout {
     btnRecStart.setGravity(Gravity.CENTER);
     btnRecStart.setPadding(0, 0, 0, 0);
     FrameLayout.LayoutParams btnRecParams = new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
+        FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
     btnRecStart.setLayoutParams(btnRecParams);
     recContainer.addView(btnRecStart);
 
@@ -109,7 +139,7 @@ public class TopBarView extends LinearLayout {
     recDotView.setBackground(dotBg);
 
     int dotSize = (int) android.util.TypedValue.applyDimension(
-            android.util.TypedValue.COMPLEX_UNIT_DIP, 12, getResources().getDisplayMetrics());
+        android.util.TypedValue.COMPLEX_UNIT_DIP, 12, getResources().getDisplayMetrics());
     FrameLayout.LayoutParams dotParams = new FrameLayout.LayoutParams(dotSize, dotSize);
     dotParams.gravity = Gravity.CENTER_VERTICAL | Gravity.START;
     dotParams.leftMargin = 16; // Отступ слева

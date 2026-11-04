@@ -3,18 +3,23 @@ package com.example.simplepad;
 // a7
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.database.ContentObserver;
 import android.graphics.Color;
+import android.media.AudioManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.*;
 import java.io.File;
-import android.os.PowerManager;
-import android.content.Context;
+import android.media.AudioManager;
+import android.database.ContentObserver;
+import android.os.Handler;
 
 public class MainActivity extends Activity {
 
@@ -46,6 +51,11 @@ public class MainActivity extends Activity {
 
   private HeadsetMonitor headsetMonitor;
   private PowerManager.WakeLock wakeLock;
+  private int voxWakeFrames = 0;
+
+  private AudioManager audioManager;
+  private ContentObserver volumeObserver;
+  private Handler volumeHandler = new Handler(Looper.getMainLooper());
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
@@ -160,11 +170,24 @@ public class MainActivity extends Activity {
         topBar.tvHeadsetIcon.setTextColor(color);
       }
     });
+    audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+
+    // Принудительно ставим стартовую громкость при запуске
+    int startVol = storage.getStartVolume();
+    if (startVol != -1) {
+      int maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+      int systemVol = Math.round((startVol / 100f) * maxVol);
+      audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, systemVol, 0);
+    }
+    updateSystemVolumeDisplay(); // Первичное отображение
+    setupVolumeObserver(); // Подписка на изменения
 
     updateKeepScreenFlag();
 
     // Запускаем Vox-индикатор, если он включён в настройках
     startVoxIndicatorIfEnabled();
+    // auto и pad при старте
+    updateVoxLabels();
 
   }
 
@@ -253,8 +276,8 @@ public class MainActivity extends Activity {
       if (index == audioPlayer.getCurrentPadIndex()) {
         audioPlayer.togglePause();
       } else {
-        audioPlayer.playNew(this, index, pads[index].filePath, padViews[index].progress,
-            this::refreshPadColors);
+        audioPlayer.playNew(this, index, pads[index].filePath, pads[index].volume,
+            padViews[index].progress, this::refreshPadColors);
       }
       refreshPadColors();
       return;
@@ -269,8 +292,8 @@ public class MainActivity extends Activity {
     if (index == audioPlayer.getCurrentPadIndex()) {
       audioPlayer.togglePause();
     } else {
-      audioPlayer.playNew(this, index, pads[index].filePath, padViews[index].progress,
-          this::refreshPadColors);
+      audioPlayer.playNew(this, index, pads[index].filePath, pads[index].volume,
+          padViews[index].progress, this::refreshPadColors);
     }
     refreshPadColors();
   }
@@ -320,6 +343,7 @@ public class MainActivity extends Activity {
 
   private void showPadMenu(final int index) {
     final String[] items = { "✏️ Переименовать", "🎤 Записать сэмпл", "📂 Импорт аудио",
+        "🔊 Громкость", // <--- Новый пункт
         "🗑 Удалить сэмпл", "❌ Отмена" };
     new AlertDialog.Builder(this).setTitle("Пэд: " + pads[index].label)
         .setItems(items, new DialogInterface.OnClickListener() {
@@ -336,6 +360,9 @@ public class MainActivity extends Activity {
                 importAudio(index);
                 break;
               case 3:
+                showVolumeDialog(index);
+                break; // <--- Вызов диалога громкости
+              case 4:
                 deleteSample(index);
                 break;
             }
@@ -404,6 +431,89 @@ public class MainActivity extends Activity {
     }
   }
 
+  private void showVolumeDialog(final int index) {
+    // Контейнер для ползунка и текстового поля
+    LinearLayout layout = new LinearLayout(this);
+    layout.setOrientation(LinearLayout.VERTICAL);
+    layout.setPadding(40, 40, 40, 40);
+
+    // Ползунок (0-100)
+    final SeekBar seekBar = new SeekBar(this);
+    seekBar.setMax(100);
+    seekBar.setProgress((int) (pads[index].volume * 100));
+
+    // Текстовое поле для точного ввода
+    final EditText editText = new EditText(this);
+    editText.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+    editText.setText(String.valueOf((int) (pads[index].volume * 100)));
+    editText.setGravity(android.view.Gravity.CENTER);
+
+    layout.addView(seekBar);
+    layout.addView(editText);
+
+    // Синхронизация: ползунок -> поле
+    seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+      @Override
+      public void onProgressChanged(SeekBar sb, int progress, boolean fromUser) {
+        if (fromUser) {
+          editText.setText(String.valueOf(progress));
+        }
+      }
+
+      @Override
+      public void onStartTrackingTouch(SeekBar sb) {
+      }
+
+      @Override
+      public void onStopTrackingTouch(SeekBar sb) {
+      }
+    });
+
+    // Синхронизация: поле -> ползунок (при вводе)
+    editText.addTextChangedListener(new android.text.TextWatcher() {
+      @Override
+      public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+      }
+
+      @Override
+      public void onTextChanged(CharSequence s, int start, int before, int count) {
+      }
+
+      @Override
+      public void afterTextChanged(android.text.Editable s) {
+        String text = s.toString();
+        if (!text.isEmpty()) {
+          try {
+            int val = Integer.parseInt(text);
+            if (val > 100)
+              val = 100;
+            seekBar.setProgress(val);
+          } catch (NumberFormatException ignored) {
+          }
+        }
+      }
+    });
+
+    new AlertDialog.Builder(this).setTitle("Громкость пэда: " + pads[index].label).setView(layout)
+        .setPositiveButton("OK", (d, w) -> {
+          String text = editText.getText().toString();
+          int volumePercent = 100;
+          if (!text.isEmpty()) {
+            try {
+              volumePercent = Integer.parseInt(text);
+              if (volumePercent > 100)
+                volumePercent = 100;
+              if (volumePercent < 0)
+                volumePercent = 0;
+            } catch (NumberFormatException ignored) {
+            }
+          }
+          pads[index].volume = volumePercent / 100f;
+          storage.savePads(pads);
+          Toast.makeText(this, "Громкость: " + volumePercent + "%", Toast.LENGTH_SHORT).show();
+        }).setNegativeButton("Отмена", null).show();
+  }
+
   private void startVoxListening() {
     stopVoxListening();
     audioRecorder.startBackgroundListening();
@@ -414,26 +524,35 @@ public class MainActivity extends Activity {
       @Override
       public void run() {
         int amp = audioRecorder.getAmplitude();
-
-        // Всегда обновляем полоску (voxRunnable запускается только когда нужно)
         topBar.voxLevelBar.setProgress(amp);
 
-        // Проверка: если включена настройка и сигнал выше порога — будим экран
-        if (storage.isWakeScreenOnVox() && amp > storage.getVoxThreshold()) {
-          wakeUpScreen();
-        }
-
         boolean isVoxAuto = storage.isVoxAutoEnabled();
-        int threshold = storage.getVoxThreshold();
+        int startThreshold = storage.getVoxStartThreshold();
+        int stopThreshold = storage.getVoxStopThreshold();
         int timeoutSec = storage.getVoxSilenceTimeout();
         int triggerFrames = storage.getVoxTriggerFrames();
+
+        boolean wakeOnVox = storage.isWakeScreenOnVox();
+        int wakeFrames = storage.getWakeScreenFrames();
 
         boolean isActuallyRecording = recordManager != null && recordManager.isRecordingMode();
         boolean isPaused = audioRecorder.isPaused();
 
+        // --- Логика пробуждения экрана ---
+        if (wakeOnVox && wakeFrames > 0 && !isActuallyRecording && amp > startThreshold) {
+          voxWakeFrames++; // Считаем кадры для пробуждения
+          if (voxWakeFrames >= wakeFrames) {
+            wakeUpScreen();
+            voxWakeFrames = 0;
+          }
+        } else {
+          voxWakeFrames = 0;
+        }
+
+        // --- Логика автостарта/автостопа ---
         if (isVoxAuto && !isPaused) {
           if (!isActuallyRecording) {
-            if (amp > threshold) {
+            if (amp > startThreshold) {
               voxTriggerFrames++;
               if (voxTriggerFrames >= triggerFrames) {
                 voxTriggerFrames = 0;
@@ -445,7 +564,7 @@ public class MainActivity extends Activity {
             }
           } else {
             voxTriggerFrames = 0;
-            if (amp < threshold) {
+            if (amp < stopThreshold) { // <--- Используем порог СТОПА
               if (voxSilenceStart == 0) {
                 voxSilenceStart = System.currentTimeMillis();
               } else if (System.currentTimeMillis() - voxSilenceStart > timeoutSec * 1000L) {
@@ -514,15 +633,20 @@ public class MainActivity extends Activity {
   @Override
   protected void onDestroy() {
     super.onDestroy();
-    if (wakeLock != null && wakeLock.isHeld()) {
-      wakeLock.release();
+    if (volumeObserver != null) {
+      getContentResolver().unregisterContentObserver(volumeObserver);
     }
+    // ... остальной код ...
+    if (wakeLock != null && wakeLock.isHeld())
+      wakeLock.release();
     if (headsetMonitor != null)
       headsetMonitor.stop();
+
     stopVoxListening();
     audioPlayer.stopAll();
     if (audioRecorder != null)
       audioRecorder.stop();
+
   }
 
   @Override
@@ -560,22 +684,63 @@ public class MainActivity extends Activity {
     PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
     if (pm == null)
       return;
-
-    // Если экран уже горит, ничего не делаем
     if (pm.isInteractive())
       return;
 
-    // Создаём WakeLock для пробуждения экрана
     if (wakeLock == null) {
       wakeLock = pm.newWakeLock(
           PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP,
           "SimplePad:WakeOnVox");
       wakeLock.setReferenceCounted(false);
     }
-
     if (!wakeLock.isHeld()) {
-      // Будим экран на 5 секунд (чтобы он загорелся и не погас сразу)
       wakeLock.acquire(5000);
     }
+  }
+
+  private void updateSystemVolumeDisplay() {
+    if (audioManager == null || topBar.tvSystemVolume == null)
+      return;
+
+    int current = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+    int max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+    int percent = (int) ((current / (float) max) * 100);
+
+    // Просто выводим процент без пробелов
+    topBar.tvSystemVolume.setText(percent + "%");
+
+    // Красим в зависимости от сравнения со стартовой громкостью
+    int startVol = storage.getStartVolume();
+    if (startVol != -1) {
+      // Погрешность ±2%, чтобы компенсировать округление системных шагов
+      int diff = percent - startVol;
+
+      if (Math.abs(diff) <= 2) {
+        // Совпадает (в пределах погрешности)
+        topBar.tvSystemVolume.setTextColor(Color.GREEN);
+      } else if (diff < 0) {
+        // Текущая громкость НИЖЕ стартовой
+        topBar.tvSystemVolume.setTextColor(0xFFFFC107);
+      } else {
+        // Текущая громкость ВЫШЕ стартовой
+        topBar.tvSystemVolume.setTextColor(Color.RED);
+      }
+    } else {
+      // Стартовая не задана
+      topBar.tvSystemVolume.setTextColor(Color.GRAY);
+    }
+  }
+
+  private void setupVolumeObserver() {
+    volumeObserver = new ContentObserver(volumeHandler) {
+      @Override
+      public void onChange(boolean selfChange) {
+        super.onChange(selfChange);
+        updateSystemVolumeDisplay(); // Обновляем при изменении громкости
+      }
+    };
+    // Слушаем изменения системных настроек громкости
+    getContentResolver().registerContentObserver(android.provider.Settings.System.CONTENT_URI, true,
+        volumeObserver);
   }
 }

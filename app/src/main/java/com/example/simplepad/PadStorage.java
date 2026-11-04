@@ -24,6 +24,7 @@ public class PadStorage {
     for (int i = 0; i < MAX_PADS; i++) {
       ed.putString("pad_" + i + "_label", pads[i].label);
       ed.putString("pad_" + i + "_path", pads[i].filePath);
+      ed.putFloat("pad_" + i + "_volume", pads[i].volume); // <--- Добавлено
     }
     ed.apply();
   }
@@ -33,7 +34,9 @@ public class PadStorage {
     for (int i = 0; i < MAX_PADS; i++) {
       String label = prefs.getString("pad_" + i + "_label", String.valueOf(i + 1));
       String path = prefs.getString("pad_" + i + "_path", null);
+      float volume = prefs.getFloat("pad_" + i + "_volume", 1.0f); // <--- Добавлено
       pads[i] = new Pad(label, path);
+      pads[i].volume = volume;
     }
     return pads;
   }
@@ -98,12 +101,47 @@ public class PadStorage {
     prefs.edit().putInt("vox_trigger_frames", frames).apply();
   }
 
-  // --- Настройка "Активировать экран по Vox" ---
+  // --- Vox: раздельные пороги ---
+  public int getVoxStartThreshold() {
+    return prefs.getInt("vox_start_threshold", 3000); // По умолчанию 3000
+  }
+
+  public void setVoxStartThreshold(int threshold) {
+    prefs.edit().putInt("vox_start_threshold", threshold).apply();
+  }
+
+  public int getVoxStopThreshold() {
+    return prefs.getInt("vox_stop_threshold", 1000); // По умолчанию 1000 (ниже старта)
+  }
+
+  public void setVoxStopThreshold(int threshold) {
+    prefs.edit().putInt("vox_stop_threshold", threshold).apply();
+  }
+
+  // --- Настройка активации экрана по Vox ---
   public boolean isWakeScreenOnVox() {
     return prefs.getBoolean("wake_screen_on_vox", false);
   }
 
   public void setWakeScreenOnVox(boolean enabled) {
     prefs.edit().putBoolean("wake_screen_on_vox", enabled).apply();
+  }
+
+  // --- Кадры для активации экрана ---
+  public int getWakeScreenFrames() {
+    return prefs.getInt("wake_screen_frames", 0); // 0 = выкл
+  }
+
+  public void setWakeScreenFrames(int frames) {
+    prefs.edit().putInt("wake_screen_frames", frames).apply();
+  }
+
+  // --- Стартовая громкость ---
+  public int getStartVolume() {
+    return prefs.getInt("start_volume", -1); // -1 означает "не задана"
+  }
+
+  public void setStartVolume(int volumePercent) {
+    prefs.edit().putInt("start_volume", volumePercent).apply();
   }
 }
