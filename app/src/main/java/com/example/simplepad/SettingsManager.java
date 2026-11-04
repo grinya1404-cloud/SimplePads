@@ -31,9 +31,13 @@ public class SettingsManager {
     String[] screenModes = { "Системно", "При записи", "Всегда" };
     int currentMode = storage.getKeepScreenMode();
 
+    String wakeOnVoxStatus = storage.isWakeScreenOnVox() ? "ВКЛ" : "ВЫКЛ";
+
     final String[] items = { "Размер сетки: " + currentGridName,
         "Автозапись при тапе: " + (isAutoRecordEnabled ? "ВКЛ" : "ВЫКЛ"),
-        "Не гасить экран: " + screenModes[currentMode], "Vox-настройки" };
+        "Не гасить экран: " + screenModes[currentMode],
+        "Активировать экран по Vox: " + wakeOnVoxStatus, // <--- Новый пункт
+        "Vox-настройки" };
 
     new AlertDialog.Builder(activity).setTitle("Настройки").setItems(items, (dialog, which) -> {
       switch (which) {
@@ -52,6 +56,17 @@ public class SettingsManager {
           showKeepScreenDialog();
           break;
         case 3:
+          boolean newWake = !storage.isWakeScreenOnVox();
+          storage.setWakeScreenOnVox(newWake);
+          Toast.makeText(activity, "Активировать экран: " + (newWake ? "ВКЛ" : "ВЫКЛ"),
+              Toast.LENGTH_SHORT).show();
+          if (settingsChangeListener != null)
+            settingsChangeListener.onSettingsChanged();
+          break;
+        case 4: // Сдвигаем Vox-настройки
+          showVoxSubmenu();
+          break;
+        case 5:
           showVoxSubmenu();
           break;
       }

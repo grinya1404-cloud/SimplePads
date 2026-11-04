@@ -13,6 +13,8 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.*;
 import java.io.File;
+import android.os.PowerManager;
+import android.content.Context;
 
 public class MainActivity extends Activity {
 
@@ -43,6 +45,7 @@ public class MainActivity extends Activity {
   private int voxTriggerFrames = 0;
 
   private HeadsetMonitor headsetMonitor;
+  private PowerManager.WakeLock wakeLock;
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
@@ -415,6 +418,11 @@ public class MainActivity extends Activity {
         // Всегда обновляем полоску (voxRunnable запускается только когда нужно)
         topBar.voxLevelBar.setProgress(amp);
 
+        // Проверка: если включена настройка и сигнал выше порога — будим экран
+        if (storage.isWakeScreenOnVox() && amp > storage.getVoxThreshold()) {
+          wakeUpScreen();
+        }
+
         boolean isVoxAuto = storage.isVoxAutoEnabled();
         int threshold = storage.getVoxThreshold();
         int timeoutSec = storage.getVoxSilenceTimeout();
@@ -506,6 +514,9 @@ public class MainActivity extends Activity {
   @Override
   protected void onDestroy() {
     super.onDestroy();
+    if (wakeLock != null && wakeLock.isHeld()) {
+      wakeLock.release();
+    }
     if (headsetMonitor != null)
       headsetMonitor.stop();
     stopVoxListening();
@@ -542,6 +553,29 @@ public class MainActivity extends Activity {
     } else {
       stopVoxListening(); // Останавливаем обновление
       topBar.voxLevelBar.setProgress(0); // Но не скрываем, а ставим на 0
+    }
+  }
+
+  private void wakeUpScreen() {
+    PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+    if (pm == null)
+      return;
+
+    // Если экран уже горит, ничего не делаем
+    if (pm.isInteractive())
+      return;
+
+    // Создаём WakeLock для пробуждения экрана
+    if (wakeLock == null) {
+      wakeLock = pm.newWakeLock(
+          PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP,
+          "SimplePad:WakeOnVox");
+      wakeLock.setReferenceCounted(false);
+    }
+
+    if (!wakeLock.isHeld()) {
+      // Будим экран на 5 секунд (чтобы он загорелся и не погас сразу)
+      wakeLock.acquire(5000);
     }
   }
 }

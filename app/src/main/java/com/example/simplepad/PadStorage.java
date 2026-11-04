@@ -97,4 +97,13 @@ public class PadStorage {
   public void setVoxTriggerFrames(int frames) {
     prefs.edit().putInt("vox_trigger_frames", frames).apply();
   }
+
+  // --- Настройка "Активировать экран по Vox" ---
+  public boolean isWakeScreenOnVox() {
+    return prefs.getBoolean("wake_screen_on_vox", false);
+  }
+
+  public void setWakeScreenOnVox(boolean enabled) {
+    prefs.edit().putBoolean("wake_screen_on_vox", enabled).apply();
+  }
 }
