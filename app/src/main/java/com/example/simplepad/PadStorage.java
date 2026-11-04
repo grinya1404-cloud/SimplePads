@@ -19,27 +19,7 @@ public class PadStorage {
     prefs.edit().putInt("keep_screen_mode", mode).apply();
   }
 
-  public void savePads(Pad[] pads) {
-    SharedPreferences.Editor ed = prefs.edit();
-    for (int i = 0; i < MAX_PADS; i++) {
-      ed.putString("pad_" + i + "_label", pads[i].label);
-      ed.putString("pad_" + i + "_path", pads[i].filePath);
-      ed.putFloat("pad_" + i + "_volume", pads[i].volume); // <--- Добавлено
-    }
-    ed.apply();
-  }
 
-  public Pad[] loadPads() {
-    Pad[] pads = new Pad[MAX_PADS];
-    for (int i = 0; i < MAX_PADS; i++) {
-      String label = prefs.getString("pad_" + i + "_label", String.valueOf(i + 1));
-      String path = prefs.getString("pad_" + i + "_path", null);
-      float volume = prefs.getFloat("pad_" + i + "_volume", 1.0f); // <--- Добавлено
-      pads[i] = new Pad(label, path);
-      pads[i].volume = volume;
-    }
-    return pads;
-  }
 
   public int getGridIndex() {
     return prefs.getInt("gridIndex", 1);
@@ -143,5 +123,30 @@ public class PadStorage {
 
   public void setStartVolume(int volumePercent) {
     prefs.edit().putInt("start_volume", volumePercent).apply();
+  }
+
+  public void savePads(Pad[] pads) {
+    SharedPreferences.Editor ed = prefs.edit();
+    for (int i = 0; i < MAX_PADS; i++) {
+      ed.putString("pad_" + i + "_label", pads[i].label);
+      ed.putString("pad_" + i + "_path", pads[i].filePath);
+      ed.putFloat("pad_" + i + "_volume", pads[i].volume);
+      ed.putInt("pad_" + i + "_offset", pads[i].startOffsetMs); // <--- Добавлено
+    }
+    ed.apply();
+  }
+
+  public Pad[] loadPads() {
+    Pad[] pads = new Pad[MAX_PADS];
+    for (int i = 0; i < MAX_PADS; i++) {
+      String label = prefs.getString("pad_" + i + "_label", String.valueOf(i + 1));
+      String path = prefs.getString("pad_" + i + "_path", null);
+      float volume = prefs.getFloat("pad_" + i + "_volume", 1.0f);
+      int offset = prefs.getInt("pad_" + i + "_offset", 0); // <--- Добавлено
+      pads[i] = new Pad(label, path);
+      pads[i].volume = volume;
+      pads[i].startOffsetMs = offset;
+    }
+    return pads;
   }
 }

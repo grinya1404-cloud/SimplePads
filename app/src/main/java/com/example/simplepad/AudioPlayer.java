@@ -35,7 +35,7 @@ public class AudioPlayer {
     return isPaused;
   }
 
-  public void playNew(Context context, int index, String filePath, float volume,
+  public void playNew(Context context, int index, String filePath, float volume, int startOffsetMs,
       ProgressBar progressBar, Runnable onCompletion) {
     release();
     try {
@@ -43,11 +43,18 @@ public class AudioPlayer {
       player.setDataSource(filePath);
       player.prepare();
 
+      // Устанавливаем громкость
+      player.setVolume(volume, volume);
+
+      // Если есть смещение, прыгаем на него
+      if (startOffsetMs > 0) {
+        player.seekTo(startOffsetMs);
+      }
+
       padDuration = player.getDuration();
       progressBase = 0;
       progressStartTime = System.currentTimeMillis();
 
-      player.setVolume(volume, volume); // <--- Устанавливаем громкость
       player.start();
       player.setOnCompletionListener(mp -> {
         currentPadIndex = -1;

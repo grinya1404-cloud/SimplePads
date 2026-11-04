@@ -277,7 +277,7 @@ public class MainActivity extends Activity {
         audioPlayer.togglePause();
       } else {
         audioPlayer.playNew(this, index, pads[index].filePath, pads[index].volume,
-            padViews[index].progress, this::refreshPadColors);
+            pads[index].startOffsetMs, padViews[index].progress, this::refreshPadColors);
       }
       refreshPadColors();
       return;
@@ -293,7 +293,7 @@ public class MainActivity extends Activity {
       audioPlayer.togglePause();
     } else {
       audioPlayer.playNew(this, index, pads[index].filePath, pads[index].volume,
-          padViews[index].progress, this::refreshPadColors);
+          pads[index].startOffsetMs, padViews[index].progress, this::refreshPadColors);
     }
     refreshPadColors();
   }
@@ -343,7 +343,7 @@ public class MainActivity extends Activity {
 
   private void showPadMenu(final int index) {
     final String[] items = { "✏️ Переименовать", "🎤 Записать сэмпл", "📂 Импорт аудио",
-        "🔊 Громкость", // <--- Новый пункт
+        "🔊 Громкость", "✂️ Смещение начала", // <--- Новый пункт
         "🗑 Удалить сэмпл", "❌ Отмена" };
     new AlertDialog.Builder(this).setTitle("Пэд: " + pads[index].label)
         .setItems(items, new DialogInterface.OnClickListener() {
@@ -361,11 +361,183 @@ public class MainActivity extends Activity {
                 break;
               case 3:
                 showVolumeDialog(index);
-                break; // <--- Вызов диалога громкости
+                break;
               case 4:
+                showOffsetDialog(index);
+                break; // <--- Вызов диалога
+              case 5:
                 deleteSample(index);
                 break;
             }
+          }
+        }).show();
+  }
+
+  private void showOffsetDialog(final int index) {
+    if (pads[index].filePath == null) {
+      Toast.makeText(this, "Сначала запишите или импортируйте сэмпл", Toast.LENGTH_SHORT).show();
+      return;
+    }
+
+    final int durationMs = MediaFileManager.getAudioDuration(pads[index].filePath);
+    if (durationMs <= 0)
+      return;
+
+    // Временный плеер для предпросмотра
+    final android.media.MediaPlayer previewPlayer = new android.media.MediaPlayer();
+    final android.os.Handler progressHandler = new android.os.Handler(
+        android.os.Looper.getMainLooper());
+    final Runnable[] progressUpdater = new Runnable[1];
+
+    LinearLayout layout = new LinearLayout(this);
+    layout.setOrientation(LinearLayout.VERTICAL);
+    layout.setPadding(40, 40, 40, 40);
+
+    // Ползунок для выбора начала
+    final SeekBar seekBar = new SeekBar(this);
+    seekBar.setMax(durationMs);
+    seekBar.setProgress(pads[index].startOffsetMs);
+
+    final TextView tvMs = new TextView(this);
+    tvMs.setText("Смещение: " + (pads[index].startOffsetMs / 1000f) + " сек");
+    tvMs.setGravity(android.view.Gravity.CENTER);
+
+    // Прогресс-бар для отображения текущей позиции предпросмотра
+    final ProgressBar previewProgress = new ProgressBar(this, null,
+        android.R.attr.progressBarStyleHorizontal);
+    previewProgress.setMax(durationMs);
+    previewProgress.setProgress(0);
+
+    final EditText editText = new EditText(this);
+    editText.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+    editText.setText(String.valueOf(pads[index].startOffsetMs));
+    editText.setGravity(android.view.Gravity.CENTER);
+
+    // Кнопка "Прослушать"
+    Button btnPlay = new Button(this);
+    btnPlay.setText("▶️ Прослушать с этого места");
+    btnPlay.setOnClickListener(v -> {
+      try {
+        previewPlayer.reset();
+        previewPlayer.setDataSource(pads[index].filePath);
+        previewPlayer.prepare();
+        previewPlayer.seekTo(seekBar.getProgress());
+        previewPlayer.start();
+
+        // Запускаем обновление прогресс-бара
+        progressUpdater[0] = new Runnable() {
+          @Override
+          public void run() {
+            if (previewPlayer.isPlaying()) {
+              previewProgress.setProgress(previewPlayer.getCurrentPosition());
+              progressHandler.postDelayed(this, 50);
+            }
+          }
+        };
+        progressHandler.post(progressUpdater[0]);
+
+      } catch (Exception e) {
+        Toast.makeText(this, "Ошибка предпросмотра", Toast.LENGTH_SHORT).show();
+      }
+    });
+
+    // Кнопка "Стоп"
+    Button btnStop = new Button(this);
+    btnStop.setText("⏹ Остановить");
+    btnStop.setOnClickListener(v -> {
+      if (previewPlayer.isPlaying()) {
+        previewPlayer.pause();
+        progressHandler.removeCallbacks(progressUpdater[0]);
+      }
+    });
+
+    layout.addView(tvMs);
+    layout.addView(seekBar);
+    layout.addView(previewProgress); // <--- Прогресс-бар
+    layout.addView(editText);
+    layout.addView(btnPlay);
+    layout.addView(btnStop);
+
+    seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+      @Override
+      public void onProgressChanged(SeekBar sb, int progress, boolean fromUser) {
+        if (fromUser) {
+          editText.setText(String.valueOf(progress));
+          tvMs.setText("Смещение: " + (progress / 1000f) + " сек");
+          // Синхронизируем прогресс-бар с ползунком, если предпросмотр не идёт
+          if (!previewPlayer.isPlaying()) {
+            previewProgress.setProgress(progress);
+          }
+        }
+      }
+
+      @Override
+      public void onStartTrackingTouch(SeekBar sb) {
+      }
+
+      @Override
+      public void onStopTrackingTouch(SeekBar sb) {
+      }
+    });
+
+    editText.addTextChangedListener(new android.text.TextWatcher() {
+      @Override
+      public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+      }
+
+      @Override
+      public void onTextChanged(CharSequence s, int start, int before, int count) {
+      }
+
+      @Override
+      public void afterTextChanged(android.text.Editable s) {
+        if (!s.toString().isEmpty()) {
+          try {
+            int val = Integer.parseInt(s.toString());
+            if (val > durationMs)
+              val = durationMs;
+            seekBar.setProgress(val);
+            tvMs.setText("Смещение: " + (val / 1000f) + " сек");
+          } catch (NumberFormatException ignored) {
+          }
+        }
+      }
+    });
+
+    new AlertDialog.Builder(this).setTitle("Смещение начала").setView(layout)
+        .setPositiveButton("OK", (d, w) -> {
+          progressHandler.removeCallbacks(progressUpdater[0]);
+          try {
+            previewPlayer.release();
+          } catch (Exception ignored) {
+          }
+
+          String text = editText.getText().toString();
+          int offset = 0;
+          if (!text.isEmpty()) {
+            try {
+              offset = Integer.parseInt(text);
+              if (offset > durationMs)
+                offset = durationMs;
+              if (offset < 0)
+                offset = 0;
+            } catch (NumberFormatException ignored) {
+            }
+          }
+          pads[index].startOffsetMs = offset;
+          storage.savePads(pads);
+          Toast.makeText(this, "Смещение: " + (offset / 1000f) + " сек", Toast.LENGTH_SHORT).show();
+        }).setNegativeButton("Отмена", (d, w) -> {
+          progressHandler.removeCallbacks(progressUpdater[0]);
+          try {
+            previewPlayer.release();
+          } catch (Exception ignored) {
+          }
+        }).setOnCancelListener(dialog -> {
+          progressHandler.removeCallbacks(progressUpdater[0]);
+          try {
+            previewPlayer.release();
+          } catch (Exception ignored) {
           }
         }).show();
   }
