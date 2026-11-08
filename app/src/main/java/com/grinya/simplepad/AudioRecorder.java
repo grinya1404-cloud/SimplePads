@@ -1,4 +1,4 @@
-package com.example.simplepad;
+package com.grinya.simplepad;
 
 import android.content.Context;
 import android.content.Intent;
@@ -168,7 +168,7 @@ public class AudioRecorder {
 
     if (useVoxService) {
       Intent stopIntent = new Intent(context, VoxService.class);
-      stopIntent.setAction("com.example.simplepad.action.STOP_VOX");
+      stopIntent.setAction("com.grinya.simplepad.action.STOP_VOX");
       context.stopService(stopIntent);
       voxService = null;
       return;

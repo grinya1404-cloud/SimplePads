@@ -1,4 +1,4 @@
-package com.example.simplepad;
+package com.grinya.simplepad;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;

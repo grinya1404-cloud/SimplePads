@@ -1,4 +1,4 @@
-package com.example.simplepad;
+package com.grinya.simplepad;
 
 import android.app.Activity;
 import android.app.AlertDialog;

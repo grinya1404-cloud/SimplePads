@@ -1,4 +1,4 @@
-package com.example.simplepad;
+package com.grinya.simplepad;
 
 import android.media.MediaPlayer;
 import android.os.Handler;

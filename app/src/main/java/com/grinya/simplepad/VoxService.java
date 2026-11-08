@@ -1,4 +1,4 @@
-package com.example.simplepad;
+package com.grinya.simplepad;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -46,7 +46,7 @@ public class VoxService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent != null && "com.example.simplepad.action.STOP_VOX".equals(intent.getAction())) {
+        if (intent != null && "com.grinya.simplepad.action.STOP_VOX".equals(intent.getAction())) {
             stopSelf();
             return START_NOT_STICKY;
         }
@@ -138,7 +138,7 @@ public class VoxService extends Service {
         }
         // Android 7 (API 24-25): каналы уведомлений не поддерживаются
         Intent stopIntent = new Intent(this, VoxService.class);
-        stopIntent.setAction("com.example.simplepad.action.STOP_VOX");
+        stopIntent.setAction("com.grinya.simplepad.action.STOP_VOX");
         PendingIntent stopPending = PendingIntent.getService(
                 this, 0, stopIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
@@ -156,7 +156,7 @@ public class VoxService extends Service {
         createNotificationChannel();
 
         Intent stopIntent = new Intent(this, VoxService.class);
-        stopIntent.setAction("com.example.simplepad.action.STOP_VOX");
+        stopIntent.setAction("com.grinya.simplepad.action.STOP_VOX");
         PendingIntent stopPending = PendingIntent.getService(
                 this, 0, stopIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);

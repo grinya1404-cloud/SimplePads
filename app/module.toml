@@ -44,7 +44,7 @@ java = ["src/test/java", "src/test/kotlin"]
 resources = ["src/test/resources"]
 
 [android]
-namespace = "com.example.simplepad"
+namespace = "com.grinya.simplepad"
 compileSdk = 36
 minSdk = 24
 targetSdk = 36
