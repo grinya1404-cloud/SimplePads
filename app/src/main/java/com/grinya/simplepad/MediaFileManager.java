@@ -63,13 +63,16 @@ public class MediaFileManager {
       return null;
     }
   }
-
-  // Форматирование длительности из миллисекунд (например, "1:23")
-  public static String formatDuration(int durationMs) {
-    int seconds = (durationMs / 1000) % 60;
-    int minutes = (durationMs / 1000) / 60;
-    return String.format(Locale.getDefault(), "%d:%02d", minutes, seconds);
-  }
+  // Форматирование длительности в секундах (например, "5.2 сек")
+public static String formatDuration(int durationMs) {
+    float seconds = durationMs / 1000f;
+    // Если секунды целые, выводим без дробной части
+    if (seconds == (int) seconds) {
+        return (int) seconds + " сек";
+    } else {
+        return String.format(Locale.getDefault(), "%.1f сек", seconds);
+    }
+}
 
   // Получение длительности файла
   public static int getAudioDuration(String path) {

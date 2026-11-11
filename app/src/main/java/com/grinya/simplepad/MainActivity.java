@@ -432,14 +432,13 @@ public class MainActivity extends Activity {
   }
 
   private void showVolumeDialog(final int index) {
-    // Контейнер для ползунка и текстового поля
     LinearLayout layout = new LinearLayout(this);
     layout.setOrientation(LinearLayout.VERTICAL);
     layout.setPadding(40, 40, 40, 40);
 
-    // Ползунок (0-100)
+    // Ползунок (0-400%)
     final SeekBar seekBar = new SeekBar(this);
-    seekBar.setMax(100);
+    seekBar.setMax(400);
     seekBar.setProgress((int) (pads[index].volume * 100));
 
     // Текстовое поле для точного ввода
@@ -451,7 +450,6 @@ public class MainActivity extends Activity {
     layout.addView(seekBar);
     layout.addView(editText);
 
-    // Синхронизация: ползунок -> поле
     seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
       @Override
       public void onProgressChanged(SeekBar sb, int progress, boolean fromUser) {
@@ -469,7 +467,6 @@ public class MainActivity extends Activity {
       }
     });
 
-    // Синхронизация: поле -> ползунок (при вводе)
     editText.addTextChangedListener(new android.text.TextWatcher() {
       @Override
       public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -485,8 +482,8 @@ public class MainActivity extends Activity {
         if (!text.isEmpty()) {
           try {
             int val = Integer.parseInt(text);
-            if (val > 100)
-              val = 100;
+            if (val > 400)
+              val = 400;
             seekBar.setProgress(val);
           } catch (NumberFormatException ignored) {
           }
@@ -501,8 +498,8 @@ public class MainActivity extends Activity {
           if (!text.isEmpty()) {
             try {
               volumePercent = Integer.parseInt(text);
-              if (volumePercent > 100)
-                volumePercent = 100;
+              if (volumePercent > 400)
+                volumePercent = 400;
               if (volumePercent < 0)
                 volumePercent = 0;
             } catch (NumberFormatException ignored) {

@@ -20,6 +20,7 @@ public class AudioPlayer {
   private long padDuration = 0;
   private long progressStartTime = 0;
   private long progressBase = 0;
+  private android.media.audiofx.LoudnessEnhancer loudnessEnhancer;
 
   private ProgressBar currentProgressBar;
 
@@ -42,6 +43,40 @@ public class AudioPlayer {
       player = new MediaPlayer();
       player.setDataSource(filePath);
       player.prepare();
+
+      // В playNew после player.prepare():
+      if (volume > 1.0f) {
+        try {
+          // Отключаем старый эффект, если был
+          if (loudnessEnhancer != null) {
+            loudnessEnhancer.release();
+            loudnessEnhancer = null;
+          }
+
+          loudnessEnhancer = new android.media.audiofx.LoudnessEnhancer(player.getAudioSessionId());
+
+          // Переводим "volume" в дБ. Например, 200% = +6 дБ (примерно)
+          // Формула: gainDb = 20 * log10(volume)
+          float gainDb = (float) (20 * Math.log10(volume));
+          int gainMb = (int) (gainDb * 100); // миллибеллы
+
+          loudnessEnhancer.setTargetGain(gainMb);
+          loudnessEnhancer.setEnabled(true);
+
+          // Устанавливаем громкость MediaPlayer в 1.0, чтобы не было клиппинга
+          player.setVolume(1.0f, 1.0f);
+        } catch (Exception e) {
+          // Если эффект не поддерживается, просто ставим громкость 1.0
+          player.setVolume(1.0f, 1.0f);
+        }
+      } else {
+        // Обычная громкость
+        if (loudnessEnhancer != null) {
+          loudnessEnhancer.release();
+          loudnessEnhancer = null;
+        }
+        player.setVolume(volume, volume);
+      }
 
       padDuration = player.getDuration();
       progressBase = 0;
@@ -102,6 +137,13 @@ public class AudioPlayer {
       }
       player.release();
       player = null;
+    }
+    if (loudnessEnhancer != null) {
+      try {
+        loudnessEnhancer.release();
+      } catch (Exception ignored) {
+      }
+      loudnessEnhancer = null;
     }
   }
 
