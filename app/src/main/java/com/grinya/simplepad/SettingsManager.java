@@ -43,14 +43,10 @@ public class SettingsManager {
     int startVolInt = storage.getStartVolume();
     String startVol = (startVolInt == -1) ? "Не задана" : (startVolInt + "%");
 
-    final String[] items = { 
-        "Размер сетки: " + currentGridName,
+    final String[] items = { "Размер сетки: " + currentGridName,
         "Автозапись при тапе: " + (isAutoRecordEnabled ? "ВКЛ" : "ВЫКЛ"),
-        "Не гасить экран: " + screenModes[currentMode],
-        "Стартовая громкость: " + startVol, 
-        "Активировать экран по Vox: " + wakeStatus, 
-        "Vox-настройки" 
-    };
+        "Не гасить экран: " + screenModes[currentMode], "Стартовая громкость: " + startVol,
+        "Активировать экран по Vox: " + wakeStatus, "Vox-настройки" };
 
     new AlertDialog.Builder(activity).setTitle("Настройки").setItems(items, (dialog, which) -> {
       switch (which) {
@@ -60,8 +56,10 @@ public class SettingsManager {
         case 1:
           boolean newAuto = !storage.isAutoRecordEnabled();
           storage.setAutoRecordEnabled(newAuto);
-          Toast.makeText(activity, "Автозапись: " + (newAuto ? "ВКЛ" : "ВЫКЛ"), Toast.LENGTH_SHORT).show();
-          if (settingsChangeListener != null) settingsChangeListener.onSettingsChanged();
+          Toast.makeText(activity, "Автозапись: " + (newAuto ? "ВКЛ" : "ВЫКЛ"), Toast.LENGTH_SHORT)
+              .show();
+          if (settingsChangeListener != null)
+            settingsChangeListener.onSettingsChanged();
           break;
         case 2:
           showKeepScreenDialog();
@@ -70,10 +68,10 @@ public class SettingsManager {
           showStartVolumeDialog(); // <--- Новый диалог
           break;
         case 4:
-          showWakeScreenDialog(); 
+          showWakeScreenDialog();
           break;
         case 5:
-          showVoxSubmenu(); 
+          showVoxSubmenu();
           break;
       }
     }).show();
@@ -87,7 +85,8 @@ public class SettingsManager {
     final SeekBar seekBar = new SeekBar(activity);
     seekBar.setMax(100);
     int currentVol = storage.getStartVolume();
-    if (currentVol == -1) currentVol = 100; // По умолчанию 100%, если не задана
+    if (currentVol == -1)
+      currentVol = 100; // По умолчанию 100%, если не задана
     seekBar.setProgress(currentVol);
 
     final EditText editText = new EditText(activity);
@@ -99,45 +98,61 @@ public class SettingsManager {
     layout.addView(editText);
 
     seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-      @Override public void onProgressChanged(SeekBar sb, int progress, boolean fromUser) {
-        if (fromUser) editText.setText(String.valueOf(progress));
+      @Override
+      public void onProgressChanged(SeekBar sb, int progress, boolean fromUser) {
+        if (fromUser)
+          editText.setText(String.valueOf(progress));
       }
-      @Override public void onStartTrackingTouch(SeekBar sb) {}
-      @Override public void onStopTrackingTouch(SeekBar sb) {}
+
+      @Override
+      public void onStartTrackingTouch(SeekBar sb) {
+      }
+
+      @Override
+      public void onStopTrackingTouch(SeekBar sb) {
+      }
     });
 
     editText.addTextChangedListener(new android.text.TextWatcher() {
-      @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-      @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
-      @Override public void afterTextChanged(android.text.Editable s) {
+      @Override
+      public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+      }
+
+      @Override
+      public void onTextChanged(CharSequence s, int start, int before, int count) {
+      }
+
+      @Override
+      public void afterTextChanged(android.text.Editable s) {
         if (!s.toString().isEmpty()) {
           try {
             int val = Integer.parseInt(s.toString());
             seekBar.setProgress(Math.min(val, 100));
-          } catch (NumberFormatException ignored) {}
+          } catch (NumberFormatException ignored) {
+          }
         }
       }
     });
 
-    new AlertDialog.Builder(activity)
-        .setTitle("Стартовая громкость")
-        .setView(layout)
+    new AlertDialog.Builder(activity).setTitle("Стартовая громкость").setView(layout)
         .setPositiveButton("OK", (d, w) -> {
           String text = editText.getText().toString();
           int vol = 100;
           if (!text.isEmpty()) {
             try {
               vol = Integer.parseInt(text);
-              if (vol > 100) vol = 100;
-              if (vol < 0) vol = 0;
-            } catch (NumberFormatException ignored) {}
+              if (vol > 100)
+                vol = 100;
+              if (vol < 0)
+                vol = 0;
+            } catch (NumberFormatException ignored) {
+            }
           }
           storage.setStartVolume(vol);
-          if (settingsChangeListener != null) settingsChangeListener.onSettingsChanged();
+          if (settingsChangeListener != null)
+            settingsChangeListener.onSettingsChanged();
           Toast.makeText(activity, "Стартовая громкость: " + vol + "%", Toast.LENGTH_SHORT).show();
-        })
-        .setNegativeButton("Отмена", null)
-        .show();
+        }).setNegativeButton("Отмена", null).show();
   }
 
   private void showGridSizeDialog() {
@@ -153,9 +168,7 @@ public class SettingsManager {
             Toast.makeText(activity, "Сетка: " + gridNames[which], Toast.LENGTH_SHORT).show();
           }
           dialog.dismiss();
-        })
-        .setNegativeButton("Отмена", null)
-        .show();
+        }).setNegativeButton("Отмена", null).show();
   }
 
   private void showKeepScreenDialog() {
@@ -167,20 +180,18 @@ public class SettingsManager {
           if (settingsChangeListener != null)
             settingsChangeListener.onSettingsChanged();
           dialog.dismiss();
-        })
-        .setNegativeButton("Отмена", null)
-        .show();
+        }).setNegativeButton("Отмена", null).show();
   }
 
   private void showWakeScreenDialog() {
     final int[] frames = { 0, 2, 4, 6, 8 };
     final String[] names = { "Выкл", "2 кадра", "4 кадра", "6 кадров", "8 кадров" };
-    
+
     int current = 0;
     for (int i = 0; i < frames.length; i++) {
-      if (frames[i] == storage.getWakeScreenFrames()) { 
-        current = i; 
-        break; 
+      if (frames[i] == storage.getWakeScreenFrames()) {
+        current = i;
+        break;
       }
     }
 
@@ -189,16 +200,14 @@ public class SettingsManager {
           int selectedFrames = frames[which];
           storage.setWakeScreenFrames(selectedFrames);
           storage.setWakeScreenOnVox(selectedFrames > 0);
-          
-          Toast.makeText(activity, 
-              selectedFrames > 0 ? "Экран: " + names[which] : "Экран: Выкл", 
+
+          Toast.makeText(activity, selectedFrames > 0 ? "Экран: " + names[which] : "Экран: Выкл",
               Toast.LENGTH_SHORT).show();
-              
-          if (settingsChangeListener != null) settingsChangeListener.onSettingsChanged();
+
+          if (settingsChangeListener != null)
+            settingsChangeListener.onSettingsChanged();
           dialog.dismiss();
-        })
-        .setNegativeButton("Отмена", null)
-        .show();
+        }).setNegativeButton("Отмена", null).show();
   }
 
   // ================= ПОДМЕНЮ VOX =================
@@ -211,68 +220,86 @@ public class SettingsManager {
     String timeoutVal = storage.getVoxSilenceTimeout() + " сек";
     String framesVal = String.valueOf(storage.getVoxTriggerFrames());
 
-    final String[] items = { 
-        "Vox-индикатор: " + voxIndicatorStatus,
-        "Vox (Автостарт/стоп): " + voxAutoStatus, 
-        "Порог СТАРТА: " + startThresholdVal,
-        "Порог СТОПА: " + stopThresholdVal,
-        "Таймаут тишины: " + timeoutVal, 
-        "Кадров для старта записи: " + framesVal
-    };
+    final String[] items = { "Vox-индикатор: " + voxIndicatorStatus,
+        "Vox (Автостарт/стоп): " + voxAutoStatus, "Порог СТАРТА: " + startThresholdVal,
+        "Порог СТОПА: " + stopThresholdVal, "Таймаут тишины: " + timeoutVal,
+        "Кадров для старта записи: " + framesVal };
 
     new AlertDialog.Builder(activity).setTitle("Vox-настройки").setItems(items, (dialog, which) -> {
       switch (which) {
         case 0:
           boolean newVoxInd = !storage.isVoxIndicatorEnabled();
           storage.setVoxIndicatorEnabled(newVoxInd);
-          Toast.makeText(activity, "Vox-индикатор: " + (newVoxInd ? "ВКЛ" : "ВЫКЛ"), Toast.LENGTH_SHORT).show();
-          if (settingsChangeListener != null) settingsChangeListener.onSettingsChanged();
+          Toast.makeText(activity, "Vox-индикатор: " + (newVoxInd ? "ВКЛ" : "ВЫКЛ"),
+              Toast.LENGTH_SHORT).show();
+          if (settingsChangeListener != null)
+            settingsChangeListener.onSettingsChanged();
           dialog.dismiss();
           showVoxSubmenu();
           break;
         case 1:
           boolean newVoxAuto = !storage.isVoxAutoEnabled();
           storage.setVoxAutoEnabled(newVoxAuto);
-          Toast.makeText(activity, "Vox автостарт: " + (newVoxAuto ? "ВКЛ" : "ВЫКЛ"), Toast.LENGTH_SHORT).show();
-          if (settingsChangeListener != null) settingsChangeListener.onSettingsChanged();
+          Toast.makeText(activity, "Vox автостарт: " + (newVoxAuto ? "ВКЛ" : "ВЫКЛ"),
+              Toast.LENGTH_SHORT).show();
+          if (settingsChangeListener != null)
+            settingsChangeListener.onSettingsChanged();
           dialog.dismiss();
           showVoxSubmenu();
           break;
-        case 2: showVoxStartThresholdDialog(); break;
-        case 3: showVoxStopThresholdDialog(); break;
-        case 4: showVoxTimeoutDialog(); break;
-        case 5: showVoxTriggerFramesDialog(); break;
+        case 2:
+          showVoxStartThresholdDialog();
+          break;
+        case 3:
+          showVoxStopThresholdDialog();
+          break;
+        case 4:
+          showVoxTimeoutDialog();
+          break;
+        case 5:
+          showVoxTriggerFramesDialog();
+          break;
       }
     }).show();
   }
 
   private void showVoxStartThresholdDialog() {
     final int[] thresholds = { 1000, 2000, 3000, 4000, 5000, 6000 };
-    final String[] names = { "1000 (Низкий)", "2000", "3000 (Средний)", "4000", "5000", "6000 (Высокий)" };
+    final String[] names = { "1000 (Низкий)", "2000", "3000 (Средний)", "4000", "5000",
+        "6000 (Высокий)" };
     int current = 2;
     for (int i = 0; i < thresholds.length; i++) {
-      if (thresholds[i] == storage.getVoxStartThreshold()) { current = i; break; }
+      if (thresholds[i] == storage.getVoxStartThreshold()) {
+        current = i;
+        break;
+      }
     }
     new AlertDialog.Builder(activity).setTitle("Порог СТАРТА записи")
         .setSingleChoiceItems(names, current, (dialog, which) -> {
           storage.setVoxStartThreshold(thresholds[which]);
-          if (settingsChangeListener != null) settingsChangeListener.onSettingsChanged();
+          if (settingsChangeListener != null)
+            settingsChangeListener.onSettingsChanged();
           dialog.dismiss();
           showVoxSubmenu();
         }).setNegativeButton("Отмена", null).show();
   }
 
   private void showVoxStopThresholdDialog() {
-    final int[] thresholds = { 500, 1000, 1500, 2000, 3000 };
-    final String[] names = { "500 (Очень тихо)", "1000", "1500", "2000", "3000" };
-    int current = 1;
+    final int[] thresholds = { 100, 200, 300, 400, 500, 1000, 1500, 2000, 3000 };
+    final String[] names = { "100 (Очень тихо)", "200", "300", "400", "500", "1000", "1500", "2000",
+        "3000" };
+    int current = 4; // По умолчанию 500
     for (int i = 0; i < thresholds.length; i++) {
-      if (thresholds[i] == storage.getVoxStopThreshold()) { current = i; break; }
+      if (thresholds[i] == storage.getVoxStopThreshold()) {
+        current = i;
+        break;
+      }
     }
     new AlertDialog.Builder(activity).setTitle("Порог СТОПА записи")
         .setSingleChoiceItems(names, current, (dialog, which) -> {
           storage.setVoxStopThreshold(thresholds[which]);
-          if (settingsChangeListener != null) settingsChangeListener.onSettingsChanged();
+          if (settingsChangeListener != null)
+            settingsChangeListener.onSettingsChanged();
           dialog.dismiss();
           showVoxSubmenu();
         }).setNegativeButton("Отмена", null).show();
@@ -283,28 +310,40 @@ public class SettingsManager {
     final String[] names = { "5 секунд", "10 секунд", "15 секунд", "30 секунд", "1 минута" };
     int current = 2;
     for (int i = 0; i < timeouts.length; i++) {
-      if (timeouts[i] == storage.getVoxSilenceTimeout()) { current = i; break; }
+      if (timeouts[i] == storage.getVoxSilenceTimeout()) {
+        current = i;
+        break;
+      }
     }
     new AlertDialog.Builder(activity).setTitle("Таймаут тишины")
         .setSingleChoiceItems(names, current, (dialog, which) -> {
           storage.setVoxSilenceTimeout(timeouts[which]);
-          if (settingsChangeListener != null) settingsChangeListener.onSettingsChanged();
+          if (settingsChangeListener != null)
+            settingsChangeListener.onSettingsChanged();
           dialog.dismiss();
           showVoxSubmenu();
         }).setNegativeButton("Отмена", null).show();
   }
 
   private void showVoxTriggerFramesDialog() {
-    final int[] frames = { 2, 3, 4, 5, 6 };
-    final String[] names = { "2 кадра", "3 кадра", "4 кадра", "5 кадров", "6 кадров" };
-    int current = 2;
+    final int[] frames = { 2, 4, 8, 16, 32 };
+    final String[] names = { "2 кадра", "4 кадра", "8 кадров", "16 кадров", "32 кадра" };
+
+    int current = 1; // По умолчанию 4 кадра
     for (int i = 0; i < frames.length; i++) {
-      if (frames[i] == storage.getVoxTriggerFrames()) { current = i; break; }
+      if (frames[i] == storage.getVoxTriggerFrames()) {
+        current = i;
+        break;
+      }
     }
-    new AlertDialog.Builder(activity).setTitle("Кадров выше порога")
+
+    new AlertDialog.Builder(activity).setTitle("Кадров для старта записи")
+        .setMessage(
+            "Чем больше кадров, тем дольше сигнал должен держаться выше порога для старта записи.")
         .setSingleChoiceItems(names, current, (dialog, which) -> {
           storage.setVoxTriggerFrames(frames[which]);
-          if (settingsChangeListener != null) settingsChangeListener.onSettingsChanged();
+          if (settingsChangeListener != null)
+            settingsChangeListener.onSettingsChanged();
           dialog.dismiss();
           showVoxSubmenu();
         }).setNegativeButton("Отмена", null).show();

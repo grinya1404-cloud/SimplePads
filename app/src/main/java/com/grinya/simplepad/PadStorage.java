@@ -111,7 +111,7 @@ public class PadStorage {
   }
 
   public int getVoxStopThreshold() {
-    return prefs.getInt("vox_stop_threshold", 1000); // По умолчанию 1000 (ниже старта)
+    return prefs.getInt("vox_stop_threshold", 500); // По умолчанию 1000 (ниже старта)
   }
 
   public void setVoxStopThreshold(int threshold) {
